@@ -1,5 +1,5 @@
 #define DELETE_COUNT 10  // 삭제할 파일 수
-#define TOTAL_BYTE 256*1024 // SD카드에 들어갈 전체 데이터 양
+#define TOTAL_BYTE 128*1024 // SD카드에 들어갈 전체 데이터 양
 #define DIVIDED_WRITEBYTE 2  // TOTAL_BYRE를 몇번에 걸쳐서 쓸지
 #define WRITEBYTE (TOTAL_BYTE/DIVIDED_WRITEBYTE) // f_write한번 할 때 쓸 양
 
@@ -49,7 +49,7 @@ FRESULT FindOldestSubfolder(const char *basePath, char *oldestName);
 FRESULT DeleteFolder(const char *path);
 
 // Dlete vacant parent folders
-void CleanupEmptyParentFolders(const char *hourPath, const char *dayPath, const char *monthPath, const char *yearPath);
+void CleanupEmptyParentFolders(const char *dayPath, const char *monthPath, const char *yearPath);
 
 // Count things that stored in folder
 uint8_t CountItemsInFolder(const char *path);
@@ -61,7 +61,7 @@ void SD_ForceReset(void);
 
 extern uint32_t sd_write_buffer_head; // DMA버퍼의 head 위치
 
-extern uint8_t is_new_file;
+extern uint16_t is_new_file;
 
 extern uint8_t bf_sdflag;
 

@@ -19,7 +19,7 @@ FILINFO fno;         /* File information object */
 DIR dir;           /* Directory object */
 
 uint32_t sd_write_buffer_head = 0; //버퍼의 head 위치
-uint8_t is_new_file = 0;
+uint16_t is_new_file = 0;
 uint8_t bf_sdflag = 0; // SD가드가 존재하지 않거나 error가 발생한 경우 0으로 초기화
 uint8_t prpd_write_complete_flag = 1; // prpd데이터를 끝까지 모두 쓴 경우(헤더를 써야함을 알려줌)
 
@@ -442,7 +442,7 @@ void DeleteOldestMinFolder(void)
   char monthPath[13] = {0};     // "20xx/20xx-xx" 12
   char dayPath[24] = {0};       // "20xx/20xx-xx/20xx-xx-xx" 23
   char hourPath[38] = {0};      // "20xx/20xx-xx/20xx-xx-xx/20xx-xx-xx_xx" 37
-  char minPath[55] = {0};       // "20xx/20xx-xx/20xx-xx-xx/20xx-xx-xx_xx/20xx-xx-xx_xx-xx" 
+  // char minPath[55] = {0};       // "20xx/20xx-xx/20xx-xx-xx/20xx-xx-xx_xx/20xx-xx-xx_xx-xx" 
   char tmpPath[128] = {0};      // 임시 path버퍼(snprint경고 해결을 위한)
   char oldestName[22] = {0};    // 가장 오래된 폴더 이름을 저장할 버퍼
 
@@ -491,6 +491,32 @@ void DeleteOldestMinFolder(void)
   fres = FindOldestSubfolder(dayPath, oldestName);
   if (fres != FR_OK || oldestName[0] == '\0')
   {
+    printf("No min folders found in %s\n", dayPath);
+    CleanupEmptyParentFolders(dayPath, monthPath, yearPath);
+    return;
+  }
+  snprintf(tmpPath, sizeof(tmpPath), "%s/%s", dayPath, oldestName);
+  strcpy(hourPath, tmpPath);
+  printf("Oldest min folder to delete: %s\n", hourPath);
+
+  // 5. 시간 폴더와 내부 파일 모두 삭제
+  fres = DeleteFolder(hourPath);
+  if (fres != FR_OK)
+  {
+    printf("Failed to delete hour folder: %d\n", fres);
+    return;
+  }
+
+  // 6. 빈 상위 폴더들 정리
+  CleanupEmptyParentFolders(dayPath, monthPath, yearPath);
+
+
+  // 분단위의 폴더를 생성하는 경우는 4번 내용 지우고 아래 활성화 및 CleanupEmptyParentFolders함수 수정 필요
+  #if 0 
+  // 4. 가장 오래된 시간 폴더 찾기
+  fres = FindOldestSubfolder(dayPath, oldestName);
+  if (fres != FR_OK || oldestName[0] == '\0')
+  {
     printf("No hour folders found in %s\n", dayPath);
     f_unlink(dayPath);
     if (CountItemsInFolder(monthPath) == 0)
@@ -525,9 +551,10 @@ void DeleteOldestMinFolder(void)
 
   printf("Successfully deleted: %s\n", minPath);
 
-  // 6. 빈 상위 폴더들 정리
+  // 7. 빈 상위 폴더들 정리
   CleanupEmptyParentFolders(hourPath, dayPath, monthPath, yearPath);
 
+  #endif
   printf("=== Cleanup complete ===\n\n");
 }
 
@@ -672,38 +699,30 @@ FRESULT DeleteFolder(const char *path)
  * @param  yearPath: 년 폴더 경로
  * @retval None
  */
-void CleanupEmptyParentFolders(const char *hourPath, const char *dayPath, const char *monthPath, const char *yearPath)
+void CleanupEmptyParentFolders(const char *dayPath, const char *monthPath, const char *yearPath)
 {
-  // 시간 폴더가 비었는지 확인 후 삭제
-  if(CountItemsInFolder(hourPath) == 0)
+  // 일 폴더가 비었는지 확인 후 삭제
+  if(CountItemsInFolder(dayPath) == 0)
   {
-    if(f_unlink(hourPath) == FR_OK)
+    if(f_unlink(dayPath) == FR_OK)
     {
-      printf("Deleted empty hour folder: %s\n", hourPath);
+      printf("Deleted empty day folder: %s\n", dayPath);
     }
-    // 일 폴더가 비었는지 확인 후 삭제
-    if(CountItemsInFolder(dayPath) == 0)
+
+    // 월 폴더가 비었는지 확인 후 삭제
+    if(CountItemsInFolder(monthPath) == 0)
     {
-      if(f_unlink(dayPath) == FR_OK)
+      if(f_unlink(monthPath) == FR_OK)
       {
-        printf("Deleted empty day folder: %s\n", dayPath);
+        printf("Deleted empty month folder: %s\n", monthPath);
       }
 
-      // 월 폴더가 비었는지 확인 후 삭제
-      if(CountItemsInFolder(monthPath) == 0)
+      // 년 폴더가 비었는지 확인 후 삭제
+      if(CountItemsInFolder(yearPath) == 0)
       {
-        if(f_unlink(monthPath) == FR_OK)
+        if(f_unlink(yearPath) == FR_OK)
         {
-          printf("Deleted empty month folder: %s\n", monthPath);
-        }
-
-        // 년 폴더가 비었는지 확인 후 삭제
-        if(CountItemsInFolder(yearPath) == 0)
-        {
-          if(f_unlink(yearPath) == FR_OK)
-          {
-            printf("Deleted empty year folder: %s\n", yearPath);
-          }
+          printf("Deleted empty year folder: %s\n", yearPath);
         }
       }
     }

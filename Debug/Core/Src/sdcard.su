@@ -7,9 +7,9 @@
 ../Core/Src/sdcard.c:295:10:ExtractTimestamp	48	static
 ../Core/Src/sdcard.c:325:9:GetFilename_CreateFolders	88	static
 ../Core/Src/sdcard.c:367:9:CreateFolders	112	static
-../Core/Src/sdcard.c:439:6:DeleteOldestMinFolder	312	static
-../Core/Src/sdcard.c:541:9:FindOldestSubfolder	376	static
-../Core/Src/sdcard.c:601:9:DeleteFolder	744	static
-../Core/Src/sdcard.c:675:6:CleanupEmptyParentFolders	24	static
-../Core/Src/sdcard.c:719:9:CountItemsInFolder	352	static
-../Core/Src/sdcard.c:745:6:SD_ForceReset	8	static
+../Core/Src/sdcard.c:439:6:DeleteOldestMinFolder	256	static
+../Core/Src/sdcard.c:568:9:FindOldestSubfolder	376	static
+../Core/Src/sdcard.c:628:9:DeleteFolder	744	static
+../Core/Src/sdcard.c:702:6:CleanupEmptyParentFolders	24	static
+../Core/Src/sdcard.c:738:9:CountItemsInFolder	352	static
+../Core/Src/sdcard.c:764:6:SD_ForceReset	8	static

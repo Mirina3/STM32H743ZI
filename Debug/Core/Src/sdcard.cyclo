@@ -7,9 +7,9 @@
 ../Core/Src/sdcard.c:295:10:ExtractTimestamp	4
 ../Core/Src/sdcard.c:325:9:GetFilename_CreateFolders	3
 ../Core/Src/sdcard.c:367:9:CreateFolders	9
-../Core/Src/sdcard.c:439:6:DeleteOldestMinFolder	14
-../Core/Src/sdcard.c:541:9:FindOldestSubfolder	8
-../Core/Src/sdcard.c:601:9:DeleteFolder	8
-../Core/Src/sdcard.c:675:6:CleanupEmptyParentFolders	9
-../Core/Src/sdcard.c:719:9:CountItemsInFolder	4
-../Core/Src/sdcard.c:745:6:SD_ForceReset	1
+../Core/Src/sdcard.c:439:6:DeleteOldestMinFolder	11
+../Core/Src/sdcard.c:568:9:FindOldestSubfolder	8
+../Core/Src/sdcard.c:628:9:DeleteFolder	8
+../Core/Src/sdcard.c:702:6:CleanupEmptyParentFolders	7
+../Core/Src/sdcard.c:738:9:CountItemsInFolder	4
+../Core/Src/sdcard.c:764:6:SD_ForceReset	1
