@@ -242,7 +242,7 @@ int main(void)
   /********** FOR TEST ***********/
   memset(prpd_data_buffer, '1', sizeof(prpd_data_buffer));
 
-  uint16_t file_header_temp_buffer[32] = {0};
+  uint16_t file_header_temp_buffer[18];
   /*******************************/
 
   HAL_Delay(500);
@@ -258,11 +258,9 @@ int main(void)
     HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
     sprintf((char*)file_header_temp_buffer,
-      "%02d%02d%02d%02d%02d%02d",
+      "$$$$$$%02d%02d%02d%02d%02d%02d1234567890",
       sDate.Year, sDate.Month, sDate.Date,
       sTime.Hours, sTime.Minutes, sTime.Seconds);
-
-    strcat((char*)file_header_temp_buffer,"1234567890");
     /*******************************/
 
     if(bf_sdflag == 1)
@@ -274,13 +272,13 @@ int main(void)
       elapsed_time = end_time - start_time;
   
       // 시간이 경과해야하고 측정시간은 5분 이하 이거나 write_complete_flag가 0이어야 한다.
-      if((last_sec != sTime.Seconds) && ((elapsed_time < 300000) || (prpd_write_complete_flag == 0)))
+      if((last_sec != sTime.Seconds) && ((elapsed_time < SAVING_TIME) || (prpd_write_complete_flag == 0)))
       {
         printf("elapsed_time : %lu\n", elapsed_time);
         save_file_to_sdcard(file_header_temp_buffer, sizeof(file_header_temp_buffer),prpd_data_buffer, sizeof(prpd_data_buffer), filename);
         last_sec = sTime.Seconds;
       }
-      else if((last_sec != sTime.Seconds) && (elapsed_time >= 300000) && (prpd_write_complete_flag == 1))
+      else if((last_sec != sTime.Seconds) && (elapsed_time >= SAVING_TIME) && (prpd_write_complete_flag == 1))
       {
         printf("elapsed_time : %lu\n", elapsed_time);
         start_time = HAL_GetTick();

@@ -74,8 +74,8 @@ all: main-build
 main-build: CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf secondary-outputs
 
 # Tool invocations
-CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.map: $(OBJS) $(USER_OBJS) C:\MCU_5_SDcard_copy_polling\STM32H743VITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\MCU_5_SDcard_copy_polling\STM32H743VITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.map: $(OBJS) $(USER_OBJS) C:\MCU\MCU_5_SDcard_copy_polling\STM32H743VITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\MCU\MCU_5_SDcard_copy_polling\STM32H743VITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

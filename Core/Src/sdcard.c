@@ -21,7 +21,7 @@ DIR dir;           /* Directory object */
 uint32_t sd_write_buffer_head = 0; //버퍼의 head 위치
 uint8_t is_new_file = 0;
 uint8_t bf_sdflag = 0; // SD가드가 존재하지 않거나 error가 발생한 경우 0으로 초기화
-uint8_t prpd_write_complete_flag = 1; // prpd데이터를 끝까지 모두 쓴 경우
+uint8_t prpd_write_complete_flag = 1; // prpd데이터를 끝까지 모두 쓴 경우(헤더를 써야함을 알려줌)
 
 /***************************************************************************
  * @brief  Check if SD card is present
@@ -123,6 +123,7 @@ void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16
     if(prpd_write_complete_flag == 1)
     {
       fres = SD_WriteData(header_info, header_info_len, filename);
+      prpd_write_complete_flag = 0;
     }
     //헤더 정보 모두 작성 시 prpd 데이터 작성
     else fres = SD_WriteData(prpd_data, WRITEBYTE, filename);
@@ -201,7 +202,7 @@ FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filena
   UINT byteswritten;
 
   // 데이터 쓰기 전 캐시 청소 (Cache -> RAM) << ST-LINK끊김으로 인한 조치 효과 없는듯???
-  SCB_CleanDCache_by_Addr((uint32_t*)(data + sd_write_buffer_head), data_size);
+  // SCB_CleanDCache_by_Addr((uint32_t*)(data + sd_write_buffer_head), data_size);
   // 데이터 쓰기
   res = f_write(&SDFile, data + sd_write_buffer_head, data_size, &byteswritten);
 
@@ -228,6 +229,7 @@ FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filena
     if (sd_write_buffer_head == TOTAL_BYTE)
     {
       sd_write_buffer_head = 0;
+      prpd_write_complete_flag = 1;
     }
   }
 
@@ -329,12 +331,12 @@ FRESULT GetFilename_CreateFolders(char* filename, uint16_t* header_info)
   char date[7] = {0};
   char time[7] = {0};
 
-  strncpy(year,(char*)header_info,2);
-  strncpy(month,(char*)header_info + 2,2);
-  strncpy(day,(char*)header_info + 4,2);
-  strncpy(hour,(char*)header_info + 6,2);
-  strncpy(date,(char*)header_info, 6);
-  strncpy(time,(char*)header_info + 6, 6);
+  strncpy(year,(char*)header_info+6,2);
+  strncpy(month,(char*)header_info + 8,2);
+  strncpy(day,(char*)header_info + 10,2);
+  strncpy(hour,(char*)header_info + 12,2);
+  strncpy(date,(char*)header_info + 6, 6);
+  strncpy(time,(char*)header_info + 12, 6);
 
   sprintf(filename, "20%s/20%s-%s/20%s-%s-%s/20%s-%s-%s_%s/CMS_%s_%s.txt", year
                                                                          , year, month
