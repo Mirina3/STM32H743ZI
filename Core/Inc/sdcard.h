@@ -1,5 +1,5 @@
 #define DELETE_COUNT 10  // 삭제할 파일 수
-#define TOTAL_BYTE 128*1024 // SD카드에 들어갈 전체 데이터 양
+#define TOTAL_BYTE 512*1024 // SD카드에 들어갈 전체 데이터 양
 #define DIVIDED_WRITEBYTE 2  // TOTAL_BYRE를 몇번에 걸쳐서 쓸지
 #define WRITEBYTE (TOTAL_BYTE/DIVIDED_WRITEBYTE) // f_write한번 할 때 쓸 양
 
@@ -53,6 +53,9 @@ void CleanupEmptyParentFolders(const char *dayPath, const char *monthPath, const
 
 // Count things that stored in folder
 uint8_t CountItemsInFolder(const char *path);
+
+// PRPD data compression function
+uint32_t Zip_PRPD(uint16_t *pZipBuf, uint16_t *pRawData, uint32_t data_bytes);
 
 // Force reset the SD card interface
 void SD_ForceReset(void);

@@ -100,7 +100,7 @@ void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16
   if(mount_sd_card() == 1)
   {
     // 남아있는 용량이 200MB 미만인지 확인
-    while(SD_GetCapacity() < 12350 && fres == FR_OK)
+    while(SD_GetCapacity() < 200 && fres == FR_OK)
     {
       // 용량 부족
       printf("Not enough space on SD card\n");
@@ -126,8 +126,10 @@ void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16
       prpd_write_complete_flag = 0;
     }
     //헤더 정보 모두 작성 시 prpd 데이터 작성
-    else fres = SD_WriteData(prpd_data, WRITEBYTE, filename);
-
+    else 
+    {
+      fres = SD_WriteData(prpd_data, WRITEBYTE, filename);
+    }
     /********** CLOSE FILE **********/
     fres = f_close(&SDFile);
     if (fres != FR_OK)
@@ -225,8 +227,8 @@ FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filena
   // (PRPD데이터를 나눠쓸 횟수 + 1)의 값으로 is_new_file의 값을 나눴을 때 나머지가 1이 아닌 경우 >>> 버퍼 head 업데이트
   if(is_new_file % (DIVIDED_WRITEBYTE + 1) != 1)
   {
-    sd_write_buffer_head += byteswritten;
-    if (sd_write_buffer_head == TOTAL_BYTE)
+    sd_write_buffer_head += (byteswritten / 2); // 타입이 uint16_t 인덱스에 추가할 때는 2로 나눈 값을 더함
+    if (sd_write_buffer_head == TOTAL_BYTE / 2) // 위 내용과 마찬가지
     {
       sd_write_buffer_head = 0;
       prpd_write_complete_flag = 1;
@@ -755,6 +757,76 @@ uint8_t CountItemsInFolder(const char *path)
   return count;
 }
 
+/***************************************************************************
+  * @brief  PRPD 데이터 압축 함수
+  * @param  pZipBuf   : 압축된 데이터가 저장될 버퍼
+  * @param  pRawData  : 원본 PRPD 데이터
+  * @param  data_bytes: 원본 데이터의 길이 (Byte 단위)
+  * @retval 압축된 데이터의 길이 (Word 단위, uint16_t 개수)
+  */
+uint32_t Zip_PRPD(uint16_t *pZipBuf, uint16_t *pRawData, uint32_t data_bytes)
+{
+  if (data_bytes == 0) return 0; // 예외 처리
+
+  uint32_t num_idx = data_bytes / 2;      // 전체 인덱스 개수 (Word)
+  uint32_t zip_idx = 0;                   // 압축 버퍼 인덱스
+  
+  uint16_t current_val = pRawData[0];     // 현재 비교 중인 값
+  uint16_t dup_count = 1;                 // 중복 횟수 (1부터 시작)
+
+  // 1번째 인덱스부터 끝까지 순회
+  for (uint32_t i = 1; i < num_idx; i++)
+  {
+    if (pRawData[i] == current_val)
+    {
+      // 값이 같으면 카운트 증가
+      dup_count++;
+    }
+    else
+    {
+      // 값이 달라지면 지금까지 모은 데이터 기록
+      // ----------------------------------------------------
+      if (dup_count == 1)
+      {
+        pZipBuf[zip_idx++] = current_val;
+      }
+      else if (dup_count == 2)
+      {
+        pZipBuf[zip_idx++] = current_val;
+        pZipBuf[zip_idx++] = current_val;
+      }
+      else // 3개 이상일 때 압축
+      {
+        // 비트 15를 1로 세팅하여 압축됨을 표시 (프로토콜에 맞게 dup_count 사용)
+        pZipBuf[zip_idx++] = dup_count | 0x8000; 
+        pZipBuf[zip_idx++] = current_val;
+      }
+      // ----------------------------------------------------
+
+      // 새로운 값으로 리셋
+      current_val = pRawData[i];
+      dup_count = 1;
+    }
+  }
+
+  // 루프 종료 후 남은 마지막 데이터 묶음 처리
+  if (dup_count == 1)
+  {
+    pZipBuf[zip_idx++] = current_val;
+  }
+  else if (dup_count == 2)
+  {
+    pZipBuf[zip_idx++] = current_val;
+    pZipBuf[zip_idx++] = current_val;
+  }
+  else
+  {
+    pZipBuf[zip_idx++] = dup_count | 0x8000;
+    pZipBuf[zip_idx++] = current_val;
+  }
+
+  return zip_idx; // 압축된 배열의 길이 반환
+}
 
 /***************************************************************************
  * @brief  sd reset function

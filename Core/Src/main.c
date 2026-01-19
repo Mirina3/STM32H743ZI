@@ -145,7 +145,7 @@ static void MX_SDMMC1_SD_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-__attribute__((section(".prpd_data_buffer"))) uint16_t prpd_data_buffer[TOTAL_BYTE];
+__attribute__((section(".prpd_data_buffer"))) uint16_t prpd_data_buffer[TOTAL_BYTE / 2];
 /* USER CODE END 0 */
 
 /**

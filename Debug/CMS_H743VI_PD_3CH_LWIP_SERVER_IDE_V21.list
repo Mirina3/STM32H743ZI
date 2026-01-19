@@ -21,29 +21,29 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
   8 ._user_heap_stack 00003004  20000e6c  080132c8  00015e6c  2**0
                   ALLOC
-  9 .prpd_data_buffer 00040000  24000000  24000000  00016000  2**2
+  9 .prpd_data_buffer 00080000  24000000  24000000  00016000  2**2
                   ALLOC
  10 .ARM.attributes 0000002e  00000000  00000000  00015070  2**0
                   CONTENTS, READONLY
- 11 .debug_info   00031cec  00000000  00000000  0001509e  2**0
+ 11 .debug_info   00031d77  00000000  00000000  0001509e  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 12 .debug_abbrev 0000537c  00000000  00000000  00046d8a  2**0
+ 12 .debug_abbrev 0000539a  00000000  00000000  00046e15  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 13 .debug_aranges 00002358  00000000  00000000  0004c108  2**3
+ 13 .debug_aranges 00002360  00000000  00000000  0004c1b0  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 14 .debug_rnglists 00001b72  00000000  00000000  0004e460  2**0
+ 14 .debug_rnglists 00001b79  00000000  00000000  0004e510  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 15 .debug_macro  00045082  00000000  00000000  0004ffd2  2**0
+ 15 .debug_macro  00045082  00000000  00000000  00050089  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_line   000333a1  00000000  00000000  00095054  2**0
+ 16 .debug_line   0003344a  00000000  00000000  0009510b  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_str    001a03d5  00000000  00000000  000c83f5  2**0
+ 17 .debug_str    001a0404  00000000  00000000  000c8555  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .comment      00000043  00000000  00000000  002687ca  2**0
+ 18 .comment      00000043  00000000  00000000  00268959  2**0
                   CONTENTS, READONLY
- 19 .debug_frame  0000a1d0  00000000  00000000  00268810  2**2
+ 19 .debug_frame  0000a1f8  00000000  00000000  0026899c  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .debug_line_str 0000004f  00000000  00000000  002729e0  2**0
+ 20 .debug_line_str 0000004f  00000000  00000000  00272b94  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -771,7 +771,7 @@ __STATIC_FORCEINLINE void __DSB(void)
 
   /********** FOR TEST ***********/
   memset(prpd_data_buffer, '1', sizeof(prpd_data_buffer));
- 80008cc:	f44f 2280 	mov.w	r2, #262144	@ 0x40000
+ 80008cc:	f44f 2200 	mov.w	r2, #524288	@ 0x80000
  80008d0:	2131      	movs	r1, #49	@ 0x31
  80008d2:	4855      	ldr	r0, [pc, #340]	@ (8000a28 <main+0x2f4>)
  80008d4:	f011 f820 	bl	8011918 <memset>
@@ -880,7 +880,7 @@ __STATIC_FORCEINLINE void __DSB(void)
  8000990:	4638      	mov	r0, r7
  8000992:	f107 033c 	add.w	r3, r7, #60	@ 0x3c
  8000996:	9300      	str	r3, [sp, #0]
- 8000998:	f44f 2380 	mov.w	r3, #262144	@ 0x40000
+ 8000998:	f44f 2300 	mov.w	r3, #524288	@ 0x80000
  800099c:	4a22      	ldr	r2, [pc, #136]	@ (8000a28 <main+0x2f4>)
  800099e:	2124      	movs	r1, #36	@ 0x24
  80009a0:	f000 fc6c 	bl	800127c <save_file_to_sdcard>
@@ -2400,421 +2400,424 @@ void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16
  800128a:	f7ff ffc1 	bl	8001210 <mount_sd_card>
  800128e:	4603      	mov	r3, r0
  8001290:	2b01      	cmp	r3, #1
- 8001292:	d15a      	bne.n	800134a <save_file_to_sdcard+0xce>
+ 8001292:	d158      	bne.n	8001346 <save_file_to_sdcard+0xca>
   {
     // 남아있는 용량이 200MB 미만인지 확인
-    while(SD_GetCapacity() < 12350 && fres == FR_OK)
+    while(SD_GetCapacity() < 200 && fres == FR_OK)
  8001294:	e00c      	b.n	80012b0 <save_file_to_sdcard+0x34>
     {
       // 용량 부족
       printf("Not enough space on SD card\n");
- 8001296:	4832      	ldr	r0, [pc, #200]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 8001296:	4831      	ldr	r0, [pc, #196]	@ (800135c <save_file_to_sdcard+0xe0>)
  8001298:	f010 f9ec 	bl	8011674 <puts>
       DeleteOldestMinFolder();
  800129c:	f000 fb56 	bl	800194c <DeleteOldestMinFolder>
       // 정해진 파일 수량 삭제 실패
       if(fres != FR_OK)
- 80012a0:	4b30      	ldr	r3, [pc, #192]	@ (8001364 <save_file_to_sdcard+0xe8>)
+ 80012a0:	4b2f      	ldr	r3, [pc, #188]	@ (8001360 <save_file_to_sdcard+0xe4>)
  80012a2:	781b      	ldrb	r3, [r3, #0]
  80012a4:	2b00      	cmp	r3, #0
  80012a6:	d003      	beq.n	80012b0 <save_file_to_sdcard+0x34>
       {
         bf_sdflag = 0;
- 80012a8:	4b2f      	ldr	r3, [pc, #188]	@ (8001368 <save_file_to_sdcard+0xec>)
+ 80012a8:	4b2e      	ldr	r3, [pc, #184]	@ (8001364 <save_file_to_sdcard+0xe8>)
  80012aa:	2200      	movs	r2, #0
  80012ac:	701a      	strb	r2, [r3, #0]
         return;
- 80012ae:	e053      	b.n	8001358 <save_file_to_sdcard+0xdc>
-    while(SD_GetCapacity() < 12350 && fres == FR_OK)
+ 80012ae:	e051      	b.n	8001354 <save_file_to_sdcard+0xd8>
+    while(SD_GetCapacity() < 200 && fres == FR_OK)
  80012b0:	f000 f938 	bl	8001524 <SD_GetCapacity>
  80012b4:	4603      	mov	r3, r0
- 80012b6:	f243 023d 	movw	r2, #12349	@ 0x303d
- 80012ba:	4293      	cmp	r3, r2
- 80012bc:	d803      	bhi.n	80012c6 <save_file_to_sdcard+0x4a>
- 80012be:	4b29      	ldr	r3, [pc, #164]	@ (8001364 <save_file_to_sdcard+0xe8>)
- 80012c0:	781b      	ldrb	r3, [r3, #0]
- 80012c2:	2b00      	cmp	r3, #0
- 80012c4:	d0e7      	beq.n	8001296 <save_file_to_sdcard+0x1a>
+ 80012b6:	2bc7      	cmp	r3, #199	@ 0xc7
+ 80012b8:	d803      	bhi.n	80012c2 <save_file_to_sdcard+0x46>
+ 80012ba:	4b29      	ldr	r3, [pc, #164]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 80012bc:	781b      	ldrb	r3, [r3, #0]
+ 80012be:	2b00      	cmp	r3, #0
+ 80012c0:	d0e9      	beq.n	8001296 <save_file_to_sdcard+0x1a>
       }
     }
 
     /*********** OPEN FILE **********/
     fres = SD_OpenFile(filename, header_info);
- 80012c6:	68f9      	ldr	r1, [r7, #12]
- 80012c8:	69b8      	ldr	r0, [r7, #24]
- 80012ca:	f000 f857 	bl	800137c <SD_OpenFile>
- 80012ce:	4603      	mov	r3, r0
- 80012d0:	461a      	mov	r2, r3
- 80012d2:	4b24      	ldr	r3, [pc, #144]	@ (8001364 <save_file_to_sdcard+0xe8>)
- 80012d4:	701a      	strb	r2, [r3, #0]
+ 80012c2:	68f9      	ldr	r1, [r7, #12]
+ 80012c4:	69b8      	ldr	r0, [r7, #24]
+ 80012c6:	f000 f857 	bl	8001378 <SD_OpenFile>
+ 80012ca:	4603      	mov	r3, r0
+ 80012cc:	461a      	mov	r2, r3
+ 80012ce:	4b24      	ldr	r3, [pc, #144]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 80012d0:	701a      	strb	r2, [r3, #0]
     if(fres != FR_OK) return;
- 80012d6:	4b23      	ldr	r3, [pc, #140]	@ (8001364 <save_file_to_sdcard+0xe8>)
- 80012d8:	781b      	ldrb	r3, [r3, #0]
- 80012da:	2b00      	cmp	r3, #0
- 80012dc:	d139      	bne.n	8001352 <save_file_to_sdcard+0xd6>
+ 80012d2:	4b23      	ldr	r3, [pc, #140]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 80012d4:	781b      	ldrb	r3, [r3, #0]
+ 80012d6:	2b00      	cmp	r3, #0
+ 80012d8:	d139      	bne.n	800134e <save_file_to_sdcard+0xd2>
     else is_new_file ++;
- 80012de:	4b23      	ldr	r3, [pc, #140]	@ (800136c <save_file_to_sdcard+0xf0>)
- 80012e0:	881b      	ldrh	r3, [r3, #0]
- 80012e2:	3301      	adds	r3, #1
- 80012e4:	b29a      	uxth	r2, r3
- 80012e6:	4b21      	ldr	r3, [pc, #132]	@ (800136c <save_file_to_sdcard+0xf0>)
- 80012e8:	801a      	strh	r2, [r3, #0]
+ 80012da:	4b23      	ldr	r3, [pc, #140]	@ (8001368 <save_file_to_sdcard+0xec>)
+ 80012dc:	881b      	ldrh	r3, [r3, #0]
+ 80012de:	3301      	adds	r3, #1
+ 80012e0:	b29a      	uxth	r2, r3
+ 80012e2:	4b21      	ldr	r3, [pc, #132]	@ (8001368 <save_file_to_sdcard+0xec>)
+ 80012e4:	801a      	strh	r2, [r3, #0]
 
     /********** WRITE DATA ***********/
     //파일 처음 open 시 헤더 정보 작성
     if(prpd_write_complete_flag == 1)
- 80012ea:	4b21      	ldr	r3, [pc, #132]	@ (8001370 <save_file_to_sdcard+0xf4>)
- 80012ec:	781b      	ldrb	r3, [r3, #0]
- 80012ee:	2b01      	cmp	r3, #1
- 80012f0:	d10c      	bne.n	800130c <save_file_to_sdcard+0x90>
+ 80012e6:	4b21      	ldr	r3, [pc, #132]	@ (800136c <save_file_to_sdcard+0xf0>)
+ 80012e8:	781b      	ldrb	r3, [r3, #0]
+ 80012ea:	2b01      	cmp	r3, #1
+ 80012ec:	d10c      	bne.n	8001308 <save_file_to_sdcard+0x8c>
     {
       fres = SD_WriteData(header_info, header_info_len, filename);
- 80012f2:	69ba      	ldr	r2, [r7, #24]
- 80012f4:	68b9      	ldr	r1, [r7, #8]
- 80012f6:	68f8      	ldr	r0, [r7, #12]
- 80012f8:	f000 f898 	bl	800142c <SD_WriteData>
- 80012fc:	4603      	mov	r3, r0
- 80012fe:	461a      	mov	r2, r3
- 8001300:	4b18      	ldr	r3, [pc, #96]	@ (8001364 <save_file_to_sdcard+0xe8>)
- 8001302:	701a      	strb	r2, [r3, #0]
+ 80012ee:	69ba      	ldr	r2, [r7, #24]
+ 80012f0:	68b9      	ldr	r1, [r7, #8]
+ 80012f2:	68f8      	ldr	r0, [r7, #12]
+ 80012f4:	f000 f898 	bl	8001428 <SD_WriteData>
+ 80012f8:	4603      	mov	r3, r0
+ 80012fa:	461a      	mov	r2, r3
+ 80012fc:	4b18      	ldr	r3, [pc, #96]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 80012fe:	701a      	strb	r2, [r3, #0]
       prpd_write_complete_flag = 0;
- 8001304:	4b1a      	ldr	r3, [pc, #104]	@ (8001370 <save_file_to_sdcard+0xf4>)
- 8001306:	2200      	movs	r2, #0
- 8001308:	701a      	strb	r2, [r3, #0]
- 800130a:	e009      	b.n	8001320 <save_file_to_sdcard+0xa4>
+ 8001300:	4b1a      	ldr	r3, [pc, #104]	@ (800136c <save_file_to_sdcard+0xf0>)
+ 8001302:	2200      	movs	r2, #0
+ 8001304:	701a      	strb	r2, [r3, #0]
+ 8001306:	e009      	b.n	800131c <save_file_to_sdcard+0xa0>
     }
     //헤더 정보 모두 작성 시 prpd 데이터 작성
-    else fres = SD_WriteData(prpd_data, WRITEBYTE, filename);
- 800130c:	69ba      	ldr	r2, [r7, #24]
- 800130e:	f44f 3180 	mov.w	r1, #65536	@ 0x10000
- 8001312:	6878      	ldr	r0, [r7, #4]
- 8001314:	f000 f88a 	bl	800142c <SD_WriteData>
- 8001318:	4603      	mov	r3, r0
- 800131a:	461a      	mov	r2, r3
- 800131c:	4b11      	ldr	r3, [pc, #68]	@ (8001364 <save_file_to_sdcard+0xe8>)
- 800131e:	701a      	strb	r2, [r3, #0]
-
+    else 
+    {
+      fres = SD_WriteData(prpd_data, WRITEBYTE, filename);
+ 8001308:	69ba      	ldr	r2, [r7, #24]
+ 800130a:	f44f 2180 	mov.w	r1, #262144	@ 0x40000
+ 800130e:	6878      	ldr	r0, [r7, #4]
+ 8001310:	f000 f88a 	bl	8001428 <SD_WriteData>
+ 8001314:	4603      	mov	r3, r0
+ 8001316:	461a      	mov	r2, r3
+ 8001318:	4b11      	ldr	r3, [pc, #68]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 800131a:	701a      	strb	r2, [r3, #0]
+    }
     /********** CLOSE FILE **********/
     fres = f_close(&SDFile);
- 8001320:	4814      	ldr	r0, [pc, #80]	@ (8001374 <save_file_to_sdcard+0xf8>)
- 8001322:	f00e ffaf 	bl	8010284 <f_close>
- 8001326:	4603      	mov	r3, r0
- 8001328:	461a      	mov	r2, r3
- 800132a:	4b0e      	ldr	r3, [pc, #56]	@ (8001364 <save_file_to_sdcard+0xe8>)
- 800132c:	701a      	strb	r2, [r3, #0]
+ 800131c:	4814      	ldr	r0, [pc, #80]	@ (8001370 <save_file_to_sdcard+0xf4>)
+ 800131e:	f00e ffb1 	bl	8010284 <f_close>
+ 8001322:	4603      	mov	r3, r0
+ 8001324:	461a      	mov	r2, r3
+ 8001326:	4b0e      	ldr	r3, [pc, #56]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 8001328:	701a      	strb	r2, [r3, #0]
     if (fres != FR_OK)
- 800132e:	4b0d      	ldr	r3, [pc, #52]	@ (8001364 <save_file_to_sdcard+0xe8>)
- 8001330:	781b      	ldrb	r3, [r3, #0]
- 8001332:	2b00      	cmp	r3, #0
- 8001334:	d00f      	beq.n	8001356 <save_file_to_sdcard+0xda>
+ 800132a:	4b0d      	ldr	r3, [pc, #52]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 800132c:	781b      	ldrb	r3, [r3, #0]
+ 800132e:	2b00      	cmp	r3, #0
+ 8001330:	d00f      	beq.n	8001352 <save_file_to_sdcard+0xd6>
     {
       // 파일 닫기 실패
       printf("Failed to close file, error: %d\n", fres);
- 8001336:	4b0b      	ldr	r3, [pc, #44]	@ (8001364 <save_file_to_sdcard+0xe8>)
- 8001338:	781b      	ldrb	r3, [r3, #0]
- 800133a:	4619      	mov	r1, r3
- 800133c:	480e      	ldr	r0, [pc, #56]	@ (8001378 <save_file_to_sdcard+0xfc>)
- 800133e:	f010 f931 	bl	80115a4 <iprintf>
+ 8001332:	4b0b      	ldr	r3, [pc, #44]	@ (8001360 <save_file_to_sdcard+0xe4>)
+ 8001334:	781b      	ldrb	r3, [r3, #0]
+ 8001336:	4619      	mov	r1, r3
+ 8001338:	480e      	ldr	r0, [pc, #56]	@ (8001374 <save_file_to_sdcard+0xf8>)
+ 800133a:	f010 f933 	bl	80115a4 <iprintf>
       bf_sdflag = 0;
- 8001342:	4b09      	ldr	r3, [pc, #36]	@ (8001368 <save_file_to_sdcard+0xec>)
- 8001344:	2200      	movs	r2, #0
- 8001346:	701a      	strb	r2, [r3, #0]
+ 800133e:	4b09      	ldr	r3, [pc, #36]	@ (8001364 <save_file_to_sdcard+0xe8>)
+ 8001340:	2200      	movs	r2, #0
+ 8001342:	701a      	strb	r2, [r3, #0]
       return;
- 8001348:	e006      	b.n	8001358 <save_file_to_sdcard+0xdc>
+ 8001344:	e006      	b.n	8001354 <save_file_to_sdcard+0xd8>
     }
     return;
   }
   bf_sdflag = 0;
- 800134a:	4b07      	ldr	r3, [pc, #28]	@ (8001368 <save_file_to_sdcard+0xec>)
- 800134c:	2200      	movs	r2, #0
- 800134e:	701a      	strb	r2, [r3, #0]
+ 8001346:	4b07      	ldr	r3, [pc, #28]	@ (8001364 <save_file_to_sdcard+0xe8>)
+ 8001348:	2200      	movs	r2, #0
+ 800134a:	701a      	strb	r2, [r3, #0]
   return;
- 8001350:	e002      	b.n	8001358 <save_file_to_sdcard+0xdc>
+ 800134c:	e002      	b.n	8001354 <save_file_to_sdcard+0xd8>
     if(fres != FR_OK) return;
- 8001352:	bf00      	nop
- 8001354:	e000      	b.n	8001358 <save_file_to_sdcard+0xdc>
+ 800134e:	bf00      	nop
+ 8001350:	e000      	b.n	8001354 <save_file_to_sdcard+0xd8>
     return;
- 8001356:	bf00      	nop
+ 8001352:	bf00      	nop
 }
- 8001358:	3710      	adds	r7, #16
- 800135a:	46bd      	mov	sp, r7
- 800135c:	bd80      	pop	{r7, pc}
- 800135e:	bf00      	nop
- 8001360:	08012848 	.word	0x08012848
- 8001364:	20000658 	.word	0x20000658
- 8001368:	2000077a 	.word	0x2000077a
- 800136c:	20000778 	.word	0x20000778
- 8001370:	20000000 	.word	0x20000000
- 8001374:	20000a0c 	.word	0x20000a0c
- 8001378:	08012864 	.word	0x08012864
+ 8001354:	3710      	adds	r7, #16
+ 8001356:	46bd      	mov	sp, r7
+ 8001358:	bd80      	pop	{r7, pc}
+ 800135a:	bf00      	nop
+ 800135c:	08012848 	.word	0x08012848
+ 8001360:	20000658 	.word	0x20000658
+ 8001364:	2000077a 	.word	0x2000077a
+ 8001368:	20000778 	.word	0x20000778
+ 800136c:	20000000 	.word	0x20000000
+ 8001370:	20000a0c 	.word	0x20000a0c
+ 8001374:	08012864 	.word	0x08012864
 
-0800137c <SD_OpenFile>:
+08001378 <SD_OpenFile>:
  * @param  header_info: 헤더 정보 (새 파일 생성 시 파일명 생성에 사용)
  * @param  is_new_file: 파일 열기 플래그 (1: 새 파일, 2: 기존 파일)
  * @retval FRESULT: FR_OK 성공, 그 외 실패
  */
 FRESULT SD_OpenFile(char *filename, uint16_t *header_info)
 {
- 800137c:	b580      	push	{r7, lr}
- 800137e:	b084      	sub	sp, #16
- 8001380:	af00      	add	r7, sp, #0
- 8001382:	6078      	str	r0, [r7, #4]
- 8001384:	6039      	str	r1, [r7, #0]
+ 8001378:	b580      	push	{r7, lr}
+ 800137a:	b084      	sub	sp, #16
+ 800137c:	af00      	add	r7, sp, #0
+ 800137e:	6078      	str	r0, [r7, #4]
+ 8001380:	6039      	str	r1, [r7, #0]
   FRESULT res;
 
   if (is_new_file == 0)
- 8001386:	4b24      	ldr	r3, [pc, #144]	@ (8001418 <SD_OpenFile+0x9c>)
- 8001388:	881b      	ldrh	r3, [r3, #0]
- 800138a:	2b00      	cmp	r3, #0
- 800138c:	d115      	bne.n	80013ba <SD_OpenFile+0x3e>
+ 8001382:	4b24      	ldr	r3, [pc, #144]	@ (8001414 <SD_OpenFile+0x9c>)
+ 8001384:	881b      	ldrh	r3, [r3, #0]
+ 8001386:	2b00      	cmp	r3, #0
+ 8001388:	d115      	bne.n	80013b6 <SD_OpenFile+0x3e>
   {
     // 새 파일 생성
     res = GetFilename_CreateFolders(filename, header_info);
- 800138e:	6839      	ldr	r1, [r7, #0]
- 8001390:	6878      	ldr	r0, [r7, #4]
- 8001392:	f000 f969 	bl	8001668 <GetFilename_CreateFolders>
- 8001396:	4603      	mov	r3, r0
- 8001398:	73fb      	strb	r3, [r7, #15]
+ 800138a:	6839      	ldr	r1, [r7, #0]
+ 800138c:	6878      	ldr	r0, [r7, #4]
+ 800138e:	f000 f96b 	bl	8001668 <GetFilename_CreateFolders>
+ 8001392:	4603      	mov	r3, r0
+ 8001394:	73fb      	strb	r3, [r7, #15]
     if(res == FR_OK || res == FR_EXIST)
- 800139a:	7bfb      	ldrb	r3, [r7, #15]
- 800139c:	2b00      	cmp	r3, #0
- 800139e:	d002      	beq.n	80013a6 <SD_OpenFile+0x2a>
- 80013a0:	7bfb      	ldrb	r3, [r7, #15]
- 80013a2:	2b08      	cmp	r3, #8
- 80013a4:	d107      	bne.n	80013b6 <SD_OpenFile+0x3a>
+ 8001396:	7bfb      	ldrb	r3, [r7, #15]
+ 8001398:	2b00      	cmp	r3, #0
+ 800139a:	d002      	beq.n	80013a2 <SD_OpenFile+0x2a>
+ 800139c:	7bfb      	ldrb	r3, [r7, #15]
+ 800139e:	2b08      	cmp	r3, #8
+ 80013a0:	d107      	bne.n	80013b2 <SD_OpenFile+0x3a>
       res = f_open(&SDFile, filename, FA_CREATE_ALWAYS | FA_WRITE);
- 80013a6:	220a      	movs	r2, #10
- 80013a8:	6879      	ldr	r1, [r7, #4]
- 80013aa:	481c      	ldr	r0, [pc, #112]	@ (800141c <SD_OpenFile+0xa0>)
- 80013ac:	f00e fac4 	bl	800f938 <f_open>
- 80013b0:	4603      	mov	r3, r0
- 80013b2:	73fb      	strb	r3, [r7, #15]
- 80013b4:	e020      	b.n	80013f8 <SD_OpenFile+0x7c>
+ 80013a2:	220a      	movs	r2, #10
+ 80013a4:	6879      	ldr	r1, [r7, #4]
+ 80013a6:	481c      	ldr	r0, [pc, #112]	@ (8001418 <SD_OpenFile+0xa0>)
+ 80013a8:	f00e fac6 	bl	800f938 <f_open>
+ 80013ac:	4603      	mov	r3, r0
+ 80013ae:	73fb      	strb	r3, [r7, #15]
+ 80013b0:	e020      	b.n	80013f4 <SD_OpenFile+0x7c>
     else return res;
- 80013b6:	7bfb      	ldrb	r3, [r7, #15]
- 80013b8:	e02a      	b.n	8001410 <SD_OpenFile+0x94>
+ 80013b2:	7bfb      	ldrb	r3, [r7, #15]
+ 80013b4:	e02a      	b.n	800140c <SD_OpenFile+0x94>
   }
   
   else
   {
     // 기존 파일 이어쓰기
     res = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_WRITE);
- 80013ba:	2212      	movs	r2, #18
- 80013bc:	6879      	ldr	r1, [r7, #4]
- 80013be:	4817      	ldr	r0, [pc, #92]	@ (800141c <SD_OpenFile+0xa0>)
- 80013c0:	f00e faba 	bl	800f938 <f_open>
- 80013c4:	4603      	mov	r3, r0
- 80013c6:	73fb      	strb	r3, [r7, #15]
+ 80013b6:	2212      	movs	r2, #18
+ 80013b8:	6879      	ldr	r1, [r7, #4]
+ 80013ba:	4817      	ldr	r0, [pc, #92]	@ (8001418 <SD_OpenFile+0xa0>)
+ 80013bc:	f00e fabc 	bl	800f938 <f_open>
+ 80013c0:	4603      	mov	r3, r0
+ 80013c2:	73fb      	strb	r3, [r7, #15]
     if (res == FR_OK)
- 80013c8:	7bfb      	ldrb	r3, [r7, #15]
- 80013ca:	2b00      	cmp	r3, #0
- 80013cc:	d114      	bne.n	80013f8 <SD_OpenFile+0x7c>
+ 80013c4:	7bfb      	ldrb	r3, [r7, #15]
+ 80013c6:	2b00      	cmp	r3, #0
+ 80013c8:	d114      	bne.n	80013f4 <SD_OpenFile+0x7c>
     {
       res = f_lseek(&SDFile, f_size(&SDFile));
- 80013ce:	4b13      	ldr	r3, [pc, #76]	@ (800141c <SD_OpenFile+0xa0>)
- 80013d0:	68db      	ldr	r3, [r3, #12]
- 80013d2:	4619      	mov	r1, r3
- 80013d4:	4811      	ldr	r0, [pc, #68]	@ (800141c <SD_OpenFile+0xa0>)
- 80013d6:	f00e ff7f 	bl	80102d8 <f_lseek>
- 80013da:	4603      	mov	r3, r0
- 80013dc:	73fb      	strb	r3, [r7, #15]
+ 80013ca:	4b13      	ldr	r3, [pc, #76]	@ (8001418 <SD_OpenFile+0xa0>)
+ 80013cc:	68db      	ldr	r3, [r3, #12]
+ 80013ce:	4619      	mov	r1, r3
+ 80013d0:	4811      	ldr	r0, [pc, #68]	@ (8001418 <SD_OpenFile+0xa0>)
+ 80013d2:	f00e ff81 	bl	80102d8 <f_lseek>
+ 80013d6:	4603      	mov	r3, r0
+ 80013d8:	73fb      	strb	r3, [r7, #15]
       if (res != FR_OK)
- 80013de:	7bfb      	ldrb	r3, [r7, #15]
- 80013e0:	2b00      	cmp	r3, #0
- 80013e2:	d009      	beq.n	80013f8 <SD_OpenFile+0x7c>
+ 80013da:	7bfb      	ldrb	r3, [r7, #15]
+ 80013dc:	2b00      	cmp	r3, #0
+ 80013de:	d009      	beq.n	80013f4 <SD_OpenFile+0x7c>
       {
         // 파일 위치 이동 실패
         printf("Failed to seek to end of file, error: %d\n", res);
- 80013e4:	7bfb      	ldrb	r3, [r7, #15]
- 80013e6:	4619      	mov	r1, r3
- 80013e8:	480d      	ldr	r0, [pc, #52]	@ (8001420 <SD_OpenFile+0xa4>)
- 80013ea:	f010 f8db 	bl	80115a4 <iprintf>
+ 80013e0:	7bfb      	ldrb	r3, [r7, #15]
+ 80013e2:	4619      	mov	r1, r3
+ 80013e4:	480d      	ldr	r0, [pc, #52]	@ (800141c <SD_OpenFile+0xa4>)
+ 80013e6:	f010 f8dd 	bl	80115a4 <iprintf>
         bf_sdflag = 0;
- 80013ee:	4b0d      	ldr	r3, [pc, #52]	@ (8001424 <SD_OpenFile+0xa8>)
- 80013f0:	2200      	movs	r2, #0
- 80013f2:	701a      	strb	r2, [r3, #0]
+ 80013ea:	4b0d      	ldr	r3, [pc, #52]	@ (8001420 <SD_OpenFile+0xa8>)
+ 80013ec:	2200      	movs	r2, #0
+ 80013ee:	701a      	strb	r2, [r3, #0]
         return res;
- 80013f4:	7bfb      	ldrb	r3, [r7, #15]
- 80013f6:	e00b      	b.n	8001410 <SD_OpenFile+0x94>
+ 80013f0:	7bfb      	ldrb	r3, [r7, #15]
+ 80013f2:	e00b      	b.n	800140c <SD_OpenFile+0x94>
       }
     }
   }
 
   if (res != FR_OK)
- 80013f8:	7bfb      	ldrb	r3, [r7, #15]
- 80013fa:	2b00      	cmp	r3, #0
- 80013fc:	d007      	beq.n	800140e <SD_OpenFile+0x92>
+ 80013f4:	7bfb      	ldrb	r3, [r7, #15]
+ 80013f6:	2b00      	cmp	r3, #0
+ 80013f8:	d007      	beq.n	800140a <SD_OpenFile+0x92>
   {
     printf("Failed to open file, error: %d\n", res);
- 80013fe:	7bfb      	ldrb	r3, [r7, #15]
- 8001400:	4619      	mov	r1, r3
- 8001402:	4809      	ldr	r0, [pc, #36]	@ (8001428 <SD_OpenFile+0xac>)
- 8001404:	f010 f8ce 	bl	80115a4 <iprintf>
+ 80013fa:	7bfb      	ldrb	r3, [r7, #15]
+ 80013fc:	4619      	mov	r1, r3
+ 80013fe:	4809      	ldr	r0, [pc, #36]	@ (8001424 <SD_OpenFile+0xac>)
+ 8001400:	f010 f8d0 	bl	80115a4 <iprintf>
     bf_sdflag = 0;
- 8001408:	4b06      	ldr	r3, [pc, #24]	@ (8001424 <SD_OpenFile+0xa8>)
- 800140a:	2200      	movs	r2, #0
- 800140c:	701a      	strb	r2, [r3, #0]
+ 8001404:	4b06      	ldr	r3, [pc, #24]	@ (8001420 <SD_OpenFile+0xa8>)
+ 8001406:	2200      	movs	r2, #0
+ 8001408:	701a      	strb	r2, [r3, #0]
   }
 
   return res;
- 800140e:	7bfb      	ldrb	r3, [r7, #15]
+ 800140a:	7bfb      	ldrb	r3, [r7, #15]
 }
- 8001410:	4618      	mov	r0, r3
- 8001412:	3710      	adds	r7, #16
- 8001414:	46bd      	mov	sp, r7
- 8001416:	bd80      	pop	{r7, pc}
- 8001418:	20000778 	.word	0x20000778
- 800141c:	20000a0c 	.word	0x20000a0c
- 8001420:	08012888 	.word	0x08012888
- 8001424:	2000077a 	.word	0x2000077a
- 8001428:	080128b4 	.word	0x080128b4
+ 800140c:	4618      	mov	r0, r3
+ 800140e:	3710      	adds	r7, #16
+ 8001410:	46bd      	mov	sp, r7
+ 8001412:	bd80      	pop	{r7, pc}
+ 8001414:	20000778 	.word	0x20000778
+ 8001418:	20000a0c 	.word	0x20000a0c
+ 800141c:	08012888 	.word	0x08012888
+ 8001420:	2000077a 	.word	0x2000077a
+ 8001424:	080128b4 	.word	0x080128b4
 
-0800142c <SD_WriteData>:
+08001428 <SD_WriteData>:
  * @param  data_size: 쓸 데이터 크기
  * @param  filename: 파일 이름 (시간 갱신에 사용)
  * @retval FRESULT: FR_OK 성공, 그 외 실패
  */
 FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filename)
 {
- 800142c:	b580      	push	{r7, lr}
- 800142e:	b086      	sub	sp, #24
- 8001430:	af00      	add	r7, sp, #0
- 8001432:	60f8      	str	r0, [r7, #12]
- 8001434:	60b9      	str	r1, [r7, #8]
- 8001436:	607a      	str	r2, [r7, #4]
+ 8001428:	b580      	push	{r7, lr}
+ 800142a:	b086      	sub	sp, #24
+ 800142c:	af00      	add	r7, sp, #0
+ 800142e:	60f8      	str	r0, [r7, #12]
+ 8001430:	60b9      	str	r1, [r7, #8]
+ 8001432:	607a      	str	r2, [r7, #4]
   UINT byteswritten;
 
   // 데이터 쓰기 전 캐시 청소 (Cache -> RAM) << ST-LINK끊김으로 인한 조치 효과 없는듯???
   // SCB_CleanDCache_by_Addr((uint32_t*)(data + sd_write_buffer_head), data_size);
   // 데이터 쓰기
   res = f_write(&SDFile, data + sd_write_buffer_head, data_size, &byteswritten);
- 8001438:	4b30      	ldr	r3, [pc, #192]	@ (80014fc <SD_WriteData+0xd0>)
- 800143a:	681b      	ldr	r3, [r3, #0]
- 800143c:	005b      	lsls	r3, r3, #1
- 800143e:	68fa      	ldr	r2, [r7, #12]
- 8001440:	18d1      	adds	r1, r2, r3
- 8001442:	f107 0310 	add.w	r3, r7, #16
- 8001446:	68ba      	ldr	r2, [r7, #8]
- 8001448:	482d      	ldr	r0, [pc, #180]	@ (8001500 <SD_WriteData+0xd4>)
- 800144a:	f00e fd28 	bl	800fe9e <f_write>
- 800144e:	4603      	mov	r3, r0
- 8001450:	75fb      	strb	r3, [r7, #23]
+ 8001434:	4b31      	ldr	r3, [pc, #196]	@ (80014fc <SD_WriteData+0xd4>)
+ 8001436:	681b      	ldr	r3, [r3, #0]
+ 8001438:	005b      	lsls	r3, r3, #1
+ 800143a:	68fa      	ldr	r2, [r7, #12]
+ 800143c:	18d1      	adds	r1, r2, r3
+ 800143e:	f107 0310 	add.w	r3, r7, #16
+ 8001442:	68ba      	ldr	r2, [r7, #8]
+ 8001444:	482e      	ldr	r0, [pc, #184]	@ (8001500 <SD_WriteData+0xd8>)
+ 8001446:	f00e fd2a 	bl	800fe9e <f_write>
+ 800144a:	4603      	mov	r3, r0
+ 800144c:	75fb      	strb	r3, [r7, #23]
 
   // 쓰기 실패 시 오류 처리
   if (res != FR_OK)
- 8001452:	7dfb      	ldrb	r3, [r7, #23]
- 8001454:	2b00      	cmp	r3, #0
- 8001456:	d00c      	beq.n	8001472 <SD_WriteData+0x46>
+ 800144e:	7dfb      	ldrb	r3, [r7, #23]
+ 8001450:	2b00      	cmp	r3, #0
+ 8001452:	d00c      	beq.n	800146e <SD_WriteData+0x46>
   {
     f_close(&SDFile);
- 8001458:	4829      	ldr	r0, [pc, #164]	@ (8001500 <SD_WriteData+0xd4>)
- 800145a:	f00e ff13 	bl	8010284 <f_close>
+ 8001454:	482a      	ldr	r0, [pc, #168]	@ (8001500 <SD_WriteData+0xd8>)
+ 8001456:	f00e ff15 	bl	8010284 <f_close>
     printf("Failed to write to file, error: %d\n", res);
- 800145e:	7dfb      	ldrb	r3, [r7, #23]
- 8001460:	4619      	mov	r1, r3
- 8001462:	4828      	ldr	r0, [pc, #160]	@ (8001504 <SD_WriteData+0xd8>)
- 8001464:	f010 f89e 	bl	80115a4 <iprintf>
+ 800145a:	7dfb      	ldrb	r3, [r7, #23]
+ 800145c:	4619      	mov	r1, r3
+ 800145e:	4829      	ldr	r0, [pc, #164]	@ (8001504 <SD_WriteData+0xdc>)
+ 8001460:	f010 f8a0 	bl	80115a4 <iprintf>
     bf_sdflag = 0;
- 8001468:	4b27      	ldr	r3, [pc, #156]	@ (8001508 <SD_WriteData+0xdc>)
- 800146a:	2200      	movs	r2, #0
- 800146c:	701a      	strb	r2, [r3, #0]
+ 8001464:	4b28      	ldr	r3, [pc, #160]	@ (8001508 <SD_WriteData+0xe0>)
+ 8001466:	2200      	movs	r2, #0
+ 8001468:	701a      	strb	r2, [r3, #0]
     return res;
- 800146e:	7dfb      	ldrb	r3, [r7, #23]
- 8001470:	e040      	b.n	80014f4 <SD_WriteData+0xc8>
+ 800146a:	7dfb      	ldrb	r3, [r7, #23]
+ 800146c:	e041      	b.n	80014f2 <SD_WriteData+0xca>
   }
   // 작성된 바이트수가 요청한 크기와 다를 경우 오류 처리
   else if(byteswritten < data_size)
- 8001472:	693b      	ldr	r3, [r7, #16]
- 8001474:	68ba      	ldr	r2, [r7, #8]
- 8001476:	429a      	cmp	r2, r3
- 8001478:	d90a      	bls.n	8001490 <SD_WriteData+0x64>
+ 800146e:	693b      	ldr	r3, [r7, #16]
+ 8001470:	68ba      	ldr	r2, [r7, #8]
+ 8001472:	429a      	cmp	r2, r3
+ 8001474:	d90a      	bls.n	800148c <SD_WriteData+0x64>
   {
     f_close(&SDFile);
- 800147a:	4821      	ldr	r0, [pc, #132]	@ (8001500 <SD_WriteData+0xd4>)
- 800147c:	f00e ff02 	bl	8010284 <f_close>
+ 8001476:	4822      	ldr	r0, [pc, #136]	@ (8001500 <SD_WriteData+0xd8>)
+ 8001478:	f00e ff04 	bl	8010284 <f_close>
     printf("Incomplete write: %u of %lu bytes written\n", byteswritten, data_size);
- 8001480:	693b      	ldr	r3, [r7, #16]
- 8001482:	68ba      	ldr	r2, [r7, #8]
- 8001484:	4619      	mov	r1, r3
- 8001486:	4821      	ldr	r0, [pc, #132]	@ (800150c <SD_WriteData+0xe0>)
- 8001488:	f010 f88c 	bl	80115a4 <iprintf>
+ 800147c:	693b      	ldr	r3, [r7, #16]
+ 800147e:	68ba      	ldr	r2, [r7, #8]
+ 8001480:	4619      	mov	r1, r3
+ 8001482:	4822      	ldr	r0, [pc, #136]	@ (800150c <SD_WriteData+0xe4>)
+ 8001484:	f010 f88e 	bl	80115a4 <iprintf>
     return FR_DISK_ERR;
- 800148c:	2301      	movs	r3, #1
- 800148e:	e031      	b.n	80014f4 <SD_WriteData+0xc8>
+ 8001488:	2301      	movs	r3, #1
+ 800148a:	e032      	b.n	80014f2 <SD_WriteData+0xca>
   }
 
   // (PRPD데이터를 나눠쓸 횟수 + 1)의 값으로 is_new_file의 값을 나눴을 때 나머지가 1이 아닌 경우 >>> 버퍼 head 업데이트
   if(is_new_file % (DIVIDED_WRITEBYTE + 1) != 1)
- 8001490:	4b1f      	ldr	r3, [pc, #124]	@ (8001510 <SD_WriteData+0xe4>)
- 8001492:	881a      	ldrh	r2, [r3, #0]
- 8001494:	4b1f      	ldr	r3, [pc, #124]	@ (8001514 <SD_WriteData+0xe8>)
- 8001496:	fba3 1302 	umull	r1, r3, r3, r2
- 800149a:	0859      	lsrs	r1, r3, #1
- 800149c:	460b      	mov	r3, r1
- 800149e:	005b      	lsls	r3, r3, #1
- 80014a0:	440b      	add	r3, r1
- 80014a2:	1ad3      	subs	r3, r2, r3
- 80014a4:	b29b      	uxth	r3, r3
- 80014a6:	2b01      	cmp	r3, #1
- 80014a8:	d010      	beq.n	80014cc <SD_WriteData+0xa0>
+ 800148c:	4b20      	ldr	r3, [pc, #128]	@ (8001510 <SD_WriteData+0xe8>)
+ 800148e:	881a      	ldrh	r2, [r3, #0]
+ 8001490:	4b20      	ldr	r3, [pc, #128]	@ (8001514 <SD_WriteData+0xec>)
+ 8001492:	fba3 1302 	umull	r1, r3, r3, r2
+ 8001496:	0859      	lsrs	r1, r3, #1
+ 8001498:	460b      	mov	r3, r1
+ 800149a:	005b      	lsls	r3, r3, #1
+ 800149c:	440b      	add	r3, r1
+ 800149e:	1ad3      	subs	r3, r2, r3
+ 80014a0:	b29b      	uxth	r3, r3
+ 80014a2:	2b01      	cmp	r3, #1
+ 80014a4:	d011      	beq.n	80014ca <SD_WriteData+0xa2>
   {
-    sd_write_buffer_head += byteswritten;
- 80014aa:	4b14      	ldr	r3, [pc, #80]	@ (80014fc <SD_WriteData+0xd0>)
- 80014ac:	681a      	ldr	r2, [r3, #0]
- 80014ae:	693b      	ldr	r3, [r7, #16]
- 80014b0:	4413      	add	r3, r2
- 80014b2:	4a12      	ldr	r2, [pc, #72]	@ (80014fc <SD_WriteData+0xd0>)
- 80014b4:	6013      	str	r3, [r2, #0]
-    if (sd_write_buffer_head == TOTAL_BYTE)
- 80014b6:	4b11      	ldr	r3, [pc, #68]	@ (80014fc <SD_WriteData+0xd0>)
- 80014b8:	681b      	ldr	r3, [r3, #0]
- 80014ba:	f5b3 3f00 	cmp.w	r3, #131072	@ 0x20000
- 80014be:	d105      	bne.n	80014cc <SD_WriteData+0xa0>
+    sd_write_buffer_head += (byteswritten / 2); // 타입이 uint16_t 인덱스에 추가할 때는 2로 나눈 값을 더함
+ 80014a6:	693b      	ldr	r3, [r7, #16]
+ 80014a8:	085a      	lsrs	r2, r3, #1
+ 80014aa:	4b14      	ldr	r3, [pc, #80]	@ (80014fc <SD_WriteData+0xd4>)
+ 80014ac:	681b      	ldr	r3, [r3, #0]
+ 80014ae:	4413      	add	r3, r2
+ 80014b0:	4a12      	ldr	r2, [pc, #72]	@ (80014fc <SD_WriteData+0xd4>)
+ 80014b2:	6013      	str	r3, [r2, #0]
+    if (sd_write_buffer_head == TOTAL_BYTE / 2) // 위 내용과 마찬가지
+ 80014b4:	4b11      	ldr	r3, [pc, #68]	@ (80014fc <SD_WriteData+0xd4>)
+ 80014b6:	681b      	ldr	r3, [r3, #0]
+ 80014b8:	f5b3 2f80 	cmp.w	r3, #262144	@ 0x40000
+ 80014bc:	d105      	bne.n	80014ca <SD_WriteData+0xa2>
     {
       sd_write_buffer_head = 0;
- 80014c0:	4b0e      	ldr	r3, [pc, #56]	@ (80014fc <SD_WriteData+0xd0>)
- 80014c2:	2200      	movs	r2, #0
- 80014c4:	601a      	str	r2, [r3, #0]
+ 80014be:	4b0f      	ldr	r3, [pc, #60]	@ (80014fc <SD_WriteData+0xd4>)
+ 80014c0:	2200      	movs	r2, #0
+ 80014c2:	601a      	str	r2, [r3, #0]
       prpd_write_complete_flag = 1;
- 80014c6:	4b14      	ldr	r3, [pc, #80]	@ (8001518 <SD_WriteData+0xec>)
- 80014c8:	2201      	movs	r2, #1
- 80014ca:	701a      	strb	r2, [r3, #0]
+ 80014c4:	4b14      	ldr	r3, [pc, #80]	@ (8001518 <SD_WriteData+0xf0>)
+ 80014c6:	2201      	movs	r2, #1
+ 80014c8:	701a      	strb	r2, [r3, #0]
     }
   }
 
   // 파일 시간 갱신
   res = f_utime(filename, &fno);
- 80014cc:	4913      	ldr	r1, [pc, #76]	@ (800151c <SD_WriteData+0xf0>)
- 80014ce:	6878      	ldr	r0, [r7, #4]
- 80014d0:	f00f fd2e 	bl	8010f30 <f_utime>
- 80014d4:	4603      	mov	r3, r0
- 80014d6:	75fb      	strb	r3, [r7, #23]
+ 80014ca:	4914      	ldr	r1, [pc, #80]	@ (800151c <SD_WriteData+0xf4>)
+ 80014cc:	6878      	ldr	r0, [r7, #4]
+ 80014ce:	f00f fd2f 	bl	8010f30 <f_utime>
+ 80014d2:	4603      	mov	r3, r0
+ 80014d4:	75fb      	strb	r3, [r7, #23]
   if (res != FR_OK)
- 80014d8:	7dfb      	ldrb	r3, [r7, #23]
- 80014da:	2b00      	cmp	r3, #0
- 80014dc:	d009      	beq.n	80014f2 <SD_WriteData+0xc6>
+ 80014d6:	7dfb      	ldrb	r3, [r7, #23]
+ 80014d8:	2b00      	cmp	r3, #0
+ 80014da:	d009      	beq.n	80014f0 <SD_WriteData+0xc8>
   {
     printf("Failed to update file time, error: %d\n", res);
- 80014de:	7dfb      	ldrb	r3, [r7, #23]
- 80014e0:	4619      	mov	r1, r3
- 80014e2:	480f      	ldr	r0, [pc, #60]	@ (8001520 <SD_WriteData+0xf4>)
- 80014e4:	f010 f85e 	bl	80115a4 <iprintf>
+ 80014dc:	7dfb      	ldrb	r3, [r7, #23]
+ 80014de:	4619      	mov	r1, r3
+ 80014e0:	480f      	ldr	r0, [pc, #60]	@ (8001520 <SD_WriteData+0xf8>)
+ 80014e2:	f010 f85f 	bl	80115a4 <iprintf>
     bf_sdflag = 0;
- 80014e8:	4b07      	ldr	r3, [pc, #28]	@ (8001508 <SD_WriteData+0xdc>)
- 80014ea:	2200      	movs	r2, #0
- 80014ec:	701a      	strb	r2, [r3, #0]
+ 80014e6:	4b08      	ldr	r3, [pc, #32]	@ (8001508 <SD_WriteData+0xe0>)
+ 80014e8:	2200      	movs	r2, #0
+ 80014ea:	701a      	strb	r2, [r3, #0]
     return res;
- 80014ee:	7dfb      	ldrb	r3, [r7, #23]
- 80014f0:	e000      	b.n	80014f4 <SD_WriteData+0xc8>
+ 80014ec:	7dfb      	ldrb	r3, [r7, #23]
+ 80014ee:	e000      	b.n	80014f2 <SD_WriteData+0xca>
   }
 
   return FR_OK;
- 80014f2:	2300      	movs	r3, #0
+ 80014f0:	2300      	movs	r3, #0
 }
- 80014f4:	4618      	mov	r0, r3
- 80014f6:	3718      	adds	r7, #24
- 80014f8:	46bd      	mov	sp, r7
- 80014fa:	bd80      	pop	{r7, pc}
+ 80014f2:	4618      	mov	r0, r3
+ 80014f4:	3718      	adds	r7, #24
+ 80014f6:	46bd      	mov	sp, r7
+ 80014f8:	bd80      	pop	{r7, pc}
+ 80014fa:	bf00      	nop
  80014fc:	20000774 	.word	0x20000774
  8001500:	20000a0c 	.word	0x20000a0c
  8001504:	080128d4 	.word	0x080128d4
