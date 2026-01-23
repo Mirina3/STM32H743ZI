@@ -95,12 +95,12 @@ uint8_t mount_sd_card(void)
  * @param  filename: Name of the file to be saved
  * @retval None
  */
-void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16_t *prpd_data, uint32_t data_len, char *filename)
+void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16_t *prpd_data, uint32_t data_len, uint16_t *pZipBuf, uint32_t pZipBufbytes, char *filename)
 {  
   if(mount_sd_card() == 1)
   {
     // 남아있는 용량이 200MB 미만인지 확인
-    while(SD_GetCapacity() < 200 && fres == FR_OK)
+    while(SD_GetCapacity() < 8880 && fres == FR_OK)
     {
       // 용량 부족
       printf("Not enough space on SD card\n");
@@ -122,14 +122,29 @@ void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16
     //파일 처음 open 시 헤더 정보 작성
     if(prpd_write_complete_flag == 1)
     {
-      fres = SD_WriteData(header_info, header_info_len, filename);
+      fres = SD_WriteData(header_info, header_info_len, filename, header_info_len, 0);
       prpd_write_complete_flag = 0;
     }
-    //헤더 정보 모두 작성 시 prpd 데이터 작성
+    // 헤더 정보 모두 작성 시 압축된 prpd 데이터 작성
     else 
     {
-      fres = SD_WriteData(prpd_data, WRITEBYTE, filename);
+      uint8_t remain_bytes = 0;
+      uint32_t even_num = pZipBufbytes / WRITE_TIME;
+      remain_bytes = pZipBufbytes % WRITE_TIME; // 나눠쓰고 싶은 횟수로 나눴을 때 남는 바이트 수
+
+      //even_num이 홀수인 경우 짝수로 맞춤
+      if((pZipBufbytes / WRITE_TIME) & 1)
+      {
+        even_num = ((pZipBufbytes / WRITE_TIME) & ~1); // 짝수로 맞춤
+      }
+      fres = SD_WriteData(pZipBuf, even_num, filename, pZipBufbytes, remain_bytes);
     }
+    // // 헤더 정보 모두 작성 시 prpd 데이터 작성
+    // else 
+    // {
+    //   fres = SD_WriteData(prpd_data, WRITEBYTE, filename);
+    // }
+
     /********** CLOSE FILE **********/
     fres = f_close(&SDFile);
     if (fres != FR_OK)
@@ -198,13 +213,14 @@ FRESULT SD_OpenFile(char *filename, uint16_t *header_info)
  * @param  filename: 파일 이름 (시간 갱신에 사용)
  * @retval FRESULT: FR_OK 성공, 그 외 실패
  */
-FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filename)
+FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filename, uint32_t total_data_size, uint8_t remain_bytes)
 {
   FRESULT res;
   UINT byteswritten;
 
   // 데이터 쓰기 전 캐시 청소 (Cache -> RAM) << ST-LINK끊김으로 인한 조치 효과 없는듯???
   // SCB_CleanDCache_by_Addr((uint32_t*)(data + sd_write_buffer_head), data_size);
+
   // 데이터 쓰기
   res = f_write(&SDFile, data + sd_write_buffer_head, data_size, &byteswritten);
 
@@ -224,14 +240,47 @@ FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filena
     return FR_DISK_ERR;
   }
 
-  // (PRPD데이터를 나눠쓸 횟수 + 1)의 값으로 is_new_file의 값을 나눴을 때 나머지가 1이 아닌 경우 >>> 버퍼 head 업데이트
-  if(is_new_file % (DIVIDED_WRITEBYTE + 1) != 1)
+  // (PRPD데이터를 나눠쓸 횟수 + 1)의 값으로 is_new_file의 값을 나눴을 때 나머지가 1이 아닌 경우 (나머지가 1인 경우는 버퍼 head 업데이트)
+  if(is_new_file % (WRITE_TIME + 1) != 1)
   {
-    sd_write_buffer_head += (byteswritten / 2); // 타입이 uint16_t 인덱스에 추가할 때는 2로 나눈 값을 더함
-    if (sd_write_buffer_head == TOTAL_BYTE / 2) // 위 내용과 마찬가지
+    sd_write_buffer_head += (byteswritten / 2); // 타입이 uint16_t이므로 인덱스에 추가할 때는 2로 나눈 값을 더함
+    if (sd_write_buffer_head == total_data_size / 2) // 위 내용과 마찬가지
     {
       sd_write_buffer_head = 0;
       prpd_write_complete_flag = 1;
+    }
+    //WRITE_TIME번에 걸쳐서 썼지만 남아있는 데이터가 있는 경우
+    else if(is_new_file % (WRITE_TIME + 1) == 0 && sd_write_buffer_head < (total_data_size / 2))
+    {
+      if((total_data_size / WRITE_TIME) & 1)
+      {
+        res = f_write(&SDFile, data + sd_write_buffer_head, remain_bytes + WRITE_TIME, &byteswritten);
+      }
+      else
+      {
+        res = f_write(&SDFile, data + sd_write_buffer_head, remain_bytes, &byteswritten);
+      }
+      // 쓰기 실패 시 오류 처리
+      if (res != FR_OK)
+      {
+        f_close(&SDFile);
+        printf("Failed to write to file, error: %d\n", res);
+        bf_sdflag = 0;
+        return res;
+      }
+      // 작성된 바이트수가 요청한 크기와 다를 경우 오류 처리
+      else if(byteswritten < data_size)
+      {
+        f_close(&SDFile);
+        printf("Incomplete write: %u of %lu bytes written\n", byteswritten, data_size);
+        return FR_DISK_ERR;
+      }
+      sd_write_buffer_head += (byteswritten / 2);
+      if (sd_write_buffer_head == total_data_size / 2)
+      {
+        sd_write_buffer_head = 0;
+        prpd_write_complete_flag = 1;
+      }
     }
   }
 
@@ -772,7 +821,7 @@ uint32_t Zip_PRPD(uint16_t *pZipBuf, uint16_t *pRawData, uint32_t data_bytes)
   uint32_t zip_idx = 0;                   // 압축 버퍼 인덱스
   
   uint16_t current_val = pRawData[0];     // 현재 비교 중인 값
-  uint16_t dup_count = 1;                 // 중복 횟수 (1부터 시작)
+  uint32_t dup_count = 1;                 // 중복 횟수 (1부터 시작)
 
   // 1번째 인덱스부터 끝까지 순회
   for (uint32_t i = 1; i < num_idx; i++)
@@ -781,6 +830,14 @@ uint32_t Zip_PRPD(uint16_t *pZipBuf, uint16_t *pRawData, uint32_t data_bytes)
     {
       // 값이 같으면 카운트 증가
       dup_count++;
+      // 중복 횟수가 한계치(0xFFF)에 도달하면 강제로 잘라서 저장
+      if (dup_count >= 0xFFF)
+      {
+        pZipBuf[zip_idx++] = dup_count | 0x8000; // 최대치 기록
+        pZipBuf[zip_idx++] = current_val;
+        
+        dup_count = 0; // 카운트 리셋 (다음 루프부터 1이 됨 or 값이 바뀌면 1로 셋팅)
+      }
     }
     else
     {
@@ -809,7 +866,7 @@ uint32_t Zip_PRPD(uint16_t *pZipBuf, uint16_t *pRawData, uint32_t data_bytes)
     }
   }
 
-  // 루프 종료 후 남은 마지막 데이터 묶음 처리
+  // for문 종료 후 남은 마지막 데이터 묶음 처리
   if (dup_count == 1)
   {
     pZipBuf[zip_idx++] = current_val;
@@ -819,7 +876,7 @@ uint32_t Zip_PRPD(uint16_t *pZipBuf, uint16_t *pRawData, uint32_t data_bytes)
     pZipBuf[zip_idx++] = current_val;
     pZipBuf[zip_idx++] = current_val;
   }
-  else
+  else // 3개 이상일 때 압축
   {
     pZipBuf[zip_idx++] = dup_count | 0x8000;
     pZipBuf[zip_idx++] = current_val;

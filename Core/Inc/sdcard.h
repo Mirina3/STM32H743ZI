@@ -1,19 +1,19 @@
 #define DELETE_COUNT 10  // 삭제할 파일 수
 #define TOTAL_BYTE 512*1024 // SD카드에 들어갈 전체 데이터 양
-#define DIVIDED_WRITEBYTE 2  // TOTAL_BYRE를 몇번에 걸쳐서 쓸지
-#define WRITEBYTE (TOTAL_BYTE/DIVIDED_WRITEBYTE) // f_write한번 할 때 쓸 양
+#define WRITE_TIME 2  // TOTAL_BYRE를 몇번에 걸쳐서 쓸지
+// #define WRITEBYTE (TOTAL_BYTE/WRITE_TIME) // f_write한번 할 때 쓸 양
 
 // SD card presence check function
 uint8_t check_sd_card_present(void);
 
 // SD card save file functions
-void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16_t *prpd_data, uint32_t data_len, char *filename);
+void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16_t *prpd_data, uint32_t data_len, uint16_t *pZipBuf, uint32_t pZipBufbytes, char *filename);
 
 // SD card open file function
 FRESULT SD_OpenFile(char *filename, uint16_t *header_info);
 
 // SD card write data function
-FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filename);
+FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filename, uint32_t total_data_size, uint8_t remain_bytes);
 
 // SD card mount function
 uint8_t mount_sd_card(void);

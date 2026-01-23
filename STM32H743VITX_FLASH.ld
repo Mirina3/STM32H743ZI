@@ -37,8 +37,8 @@ ENTRY(Reset_Handler)
 /* Highest address of the user mode stack */
 _estack = ORIGIN(DTCMRAM) + LENGTH(DTCMRAM);    /* end of RAM */
 /* Generate a link error if heap and stack don't fit into RAM */
-_Min_Heap_Size = 0x1000;      /* required amount of heap  */
-_Min_Stack_Size = 0x2000; /* required amount of stack */
+_Min_Heap_Size = 0x4000;      /* required amount of heap  */
+_Min_Stack_Size = 0x4000; /* required amount of stack */
 
 /* Specify the memory areas */
 MEMORY
@@ -171,6 +171,11 @@ SECTIONS
     . = ABSOLUTE(0x24000000);
     *(.prpd_data_buffer)
   } >RAM_D1
+
+  .zip_buffer (NOLOAD) :
+  {
+    *(.zip_buffer)
+  } >RAM_D2
 
   /* Remove information from the standard libraries */
   /DISCARD/ :

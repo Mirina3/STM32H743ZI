@@ -75,22 +75,37 @@ DMA_HandleTypeDef hdma_usart6_rx;
 /* USER CODE BEGIN PV */
 size_t _write(int handle, const unsigned char * buffer, size_t size)
 {
-  /* Sending in normal mode */
-   for(int i=0; i<size; i++){
+  // ITM 활성화 여부 확인
+  if ((CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) &&
+      (ITM->TCR & ITM_TCR_ITMENA_Msk) &&
+      (ITM->TER & 1UL))
+  {
+    for(int i = 0; i < size; i++) {
       ITM_SendChar(*buffer++);
-   }
-   return size;
-/*
-  if(HAL_OK == HAL_UART_Transmit(&huart1, (uint8_t *)buffer, size, 100000))
-  {
-    return size;
+    }
   }
-  else
-  {
-    return -1;
-  }
-*/
+  return size;
 }
+
+
+// size_t _write(int handle, const unsigned char * buffer, size_t size)
+// {
+//   /* Sending in normal mode */
+//    for(int i=0; i<size; i++){
+//       ITM_SendChar(*buffer++);
+//    }
+//    return size;
+// /*
+//   if(HAL_OK == HAL_UART_Transmit(&huart1, (uint8_t *)buffer, size, 100000))
+//   {
+//     return size;
+//   }
+//   else
+//   {
+//     return -1;
+//   }
+// */
+// }
 #if 0
 /* USER CODE END PV */
 
@@ -146,6 +161,8 @@ static void MX_SDMMC1_SD_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 __attribute__((section(".prpd_data_buffer"))) uint16_t prpd_data_buffer[TOTAL_BYTE / 2];
+
+__attribute__((section(".zip_buffer"))) uint16_t pZipBuf[5120];
 /* USER CODE END 0 */
 
 /**
@@ -229,20 +246,26 @@ int main(void)
   HAL_PWREx_EnableBatteryCharging(PWR_BATTERY_CHARGING_RESISTOR_1_5);
 
   char filename[128] = {0};
+
+  // uint16_t pZipBuf[5120]={0};
+  // memset(pZipBuf, 0, sizeof(pZipBuf));
+  uint32_t pZiplen = 0;
+
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
+
   uint8_t last_sec=0;
   HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
   HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-  
   last_sec = sTime.Seconds;
 
-  uint32_t start_time, end_time, elapsed_time;
+  uint32_t start_time = 0, end_time = 0, elapsed_time = 0;
 
   /********** FOR TEST ***********/
   memset(prpd_data_buffer, '1', sizeof(prpd_data_buffer));
 
-  uint16_t file_header_temp_buffer[18];
+  char temp_header[64] = {0};
+  uint16_t file_header_temp_buffer[32] = {0};
   /*******************************/
 
   HAL_Delay(500);
@@ -257,11 +280,11 @@ int main(void)
     HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
     HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
-    sprintf((char*)file_header_temp_buffer,
-      "$$$$$$%02d%02d%02d%02d%02d%02d1234567890",
-      sDate.Year, sDate.Month, sDate.Date,
-      sTime.Hours, sTime.Minutes, sTime.Seconds);
+    sprintf(temp_header, "$$$$$$%02d%02d%02d%02d%02d%02d1234567890", sDate.Year, sDate.Month, sDate.Date, sTime.Hours, sTime.Minutes, sTime.Seconds);
+    memcpy(file_header_temp_buffer, temp_header, sizeof(file_header_temp_buffer));
     /*******************************/
+
+    if(prpd_write_complete_flag == 1) HAL_Delay(300000)
 
     if(bf_sdflag == 1)
     {
@@ -270,12 +293,14 @@ int main(void)
 
       end_time = HAL_GetTick();
       elapsed_time = end_time - start_time;
-  
+      
       // 시간이 경과해야하고 측정시간은 5분 이하 이거나 write_complete_flag가 0이어야 한다.
       if((last_sec != sTime.Seconds) && ((elapsed_time < SAVING_TIME) || (prpd_write_complete_flag == 0)))
       {
+        //PRPD 데이터 압축
+        pZiplen = Zip_PRPD(pZipBuf, prpd_data_buffer, sizeof(prpd_data_buffer));
         printf("elapsed_time : %lu\n", elapsed_time);
-        save_file_to_sdcard(file_header_temp_buffer, sizeof(file_header_temp_buffer),prpd_data_buffer, sizeof(prpd_data_buffer), filename);
+        save_file_to_sdcard(file_header_temp_buffer, sizeof(file_header_temp_buffer),prpd_data_buffer, sizeof(prpd_data_buffer), pZipBuf, pZiplen * 2 , filename);
         last_sec = sTime.Seconds;
       }
       else if((last_sec != sTime.Seconds) && (elapsed_time >= SAVING_TIME) && (prpd_write_complete_flag == 1))
