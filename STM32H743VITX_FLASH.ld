@@ -172,11 +172,6 @@ SECTIONS
     *(.prpd_data_buffer)
   } >RAM_D1
 
-  .zip_buffer (NOLOAD) :
-  {
-    *(.zip_buffer)
-  } >RAM_D2
-
   /* Remove information from the standard libraries */
   /DISCARD/ :
   {

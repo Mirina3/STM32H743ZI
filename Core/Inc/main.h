@@ -57,10 +57,6 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define SPI2_PD_OFFSET_nCS_C_Pin GPIO_PIN_3
-#define SPI2_PD_OFFSET_nCS_C_GPIO_Port GPIOE
-#define SPI2_PD_OFFSET_nCS_B_Pin GPIO_PIN_4
-#define SPI2_PD_OFFSET_nCS_B_GPIO_Port GPIOE
 #define SYNC_VIEW_SELECT_Pin GPIO_PIN_5
 #define SYNC_VIEW_SELECT_GPIO_Port GPIOE
 #define SYNC_GAIN_D0_Pin GPIO_PIN_6
@@ -69,25 +65,11 @@ void Error_Handler(void);
 #define RMII_nINT_WAKE_UP2_GPIO_Port GPIOC
 #define RMII_RXER_PHYAD0_Pin GPIO_PIN_0
 #define RMII_RXER_PHYAD0_GPIO_Port GPIOC
-#define RMII_MDC_Pin GPIO_PIN_1
-#define RMII_MDC_GPIO_Port GPIOC
-#define POW_SEN_Pin GPIO_PIN_2
-#define POW_SEN_GPIO_Port GPIOC
 #define AC_POE_SYNC_Pin GPIO_PIN_3
 #define AC_POE_SYNC_GPIO_Port GPIOC
 #define AC_POE_SYNC_EXTI_IRQn EXTI3_IRQn
 #define RMII_nRESET_Pin GPIO_PIN_0
 #define RMII_nRESET_GPIO_Port GPIOA
-#define RMII_REF_CLK_Pin GPIO_PIN_1
-#define RMII_REF_CLK_GPIO_Port GPIOA
-#define RMII_MDIO_Pin GPIO_PIN_2
-#define RMII_MDIO_GPIO_Port GPIOA
-#define RMII_CRS_DV_Pin GPIO_PIN_7
-#define RMII_CRS_DV_GPIO_Port GPIOA
-#define RMII_RXD0_Pin GPIO_PIN_4
-#define RMII_RXD0_GPIO_Port GPIOC
-#define RMII_RXD1_Pin GPIO_PIN_5
-#define RMII_RXD1_GPIO_Port GPIOC
 #define SYNC_GAIN_D1_Pin GPIO_PIN_7
 #define SYNC_GAIN_D1_GPIO_Port GPIOE
 #define SYNC_GAIN_D2_Pin GPIO_PIN_8
@@ -96,28 +78,10 @@ void Error_Handler(void);
 #define SYNC_MUX_SEL0_GPIO_Port GPIOE
 #define SYNC_MUX_SEL1_Pin GPIO_PIN_10
 #define SYNC_MUX_SEL1_GPIO_Port GPIOE
-#define SPI_LE_50V_Pin GPIO_PIN_11
-#define SPI_LE_50V_GPIO_Port GPIOE
-#define SPI4_BOD_SCK_Pin GPIO_PIN_12
-#define SPI4_BOD_SCK_GPIO_Port GPIOE
 #define SYNC_NOTCH_SELECT_Pin GPIO_PIN_13
 #define SYNC_NOTCH_SELECT_GPIO_Port GPIOE
-#define SPI4_BOD_MOSI_Pin GPIO_PIN_14
-#define SPI4_BOD_MOSI_GPIO_Port GPIOE
 #define SYNC_LED_Pin GPIO_PIN_15
 #define SYNC_LED_GPIO_Port GPIOE
-#define RMII_TX_EN_Pin GPIO_PIN_11
-#define RMII_TX_EN_GPIO_Port GPIOB
-#define RMII_TXD0_Pin GPIO_PIN_12
-#define RMII_TXD0_GPIO_Port GPIOB
-#define RMII_TXD1_Pin GPIO_PIN_13
-#define RMII_TXD1_GPIO_Port GPIOB
-#define SPI2_OFFSET_MOSI_Pin GPIO_PIN_15
-#define SPI2_OFFSET_MOSI_GPIO_Port GPIOB
-#define SPI_SYNC_Q_nCS_10K_Pin GPIO_PIN_8
-#define SPI_SYNC_Q_nCS_10K_GPIO_Port GPIOD
-#define SPI_SYNC_FQ_nCS_1K_Pin GPIO_PIN_9
-#define SPI_SYNC_FQ_nCS_1K_GPIO_Port GPIOD
 #define SYNC_TTL_OUT_Pin GPIO_PIN_10
 #define SYNC_TTL_OUT_GPIO_Port GPIOD
 #define SYNC_TTL_OUT_EXTI_IRQn EXTI15_10_IRQn
@@ -125,42 +89,16 @@ void Error_Handler(void);
 #define RUN_LED_GPIO_Port GPIOD
 #define HALT_LED_Pin GPIO_PIN_15
 #define HALT_LED_GPIO_Port GPIOD
-#define USART6_TX_Pin GPIO_PIN_6
-#define USART6_TX_GPIO_Port GPIOC
-#define USART6_RX_Pin GPIO_PIN_7
-#define USART6_RX_GPIO_Port GPIOC
 #define SDMMC1_DET_Pin GPIO_PIN_8
 #define SDMMC1_DET_GPIO_Port GPIOA
-#define USART1_TX_Pin GPIO_PIN_9
-#define USART1_TX_GPIO_Port GPIOA
-#define USART1_RX_Pin GPIO_PIN_10
-#define USART1_RX_GPIO_Port GPIOA
-#define SPI2_PD_OFFSET_nCS_A_Pin GPIO_PIN_11
-#define SPI2_PD_OFFSET_nCS_A_GPIO_Port GPIOA
-#define USART1_DE_Pin GPIO_PIN_12
-#define USART1_DE_GPIO_Port GPIOA
 #define POW_CLT_V3P3D_Pin GPIO_PIN_0
 #define POW_CLT_V3P3D_GPIO_Port GPIOD
 #define POW_CLT_V5P0C_Pin GPIO_PIN_1
 #define POW_CLT_V5P0C_GPIO_Port GPIOD
-#define SPI2_OFFSET_CLK_Pin GPIO_PIN_3
-#define SPI2_OFFSET_CLK_GPIO_Port GPIOD
 #define POW_CLT_V3P3C_Pin GPIO_PIN_4
 #define POW_CLT_V3P3C_GPIO_Port GPIOD
 #define PEAK_RST_Pin GPIO_PIN_5
 #define PEAK_RST_GPIO_Port GPIOD
-#define SPI_SYNC_OFFSET_nCS_Pin GPIO_PIN_6
-#define SPI_SYNC_OFFSET_nCS_GPIO_Port GPIOD
-#define SPI_SYNC_FQ_nCS_50K_Pin GPIO_PIN_7
-#define SPI_SYNC_FQ_nCS_50K_GPIO_Port GPIOD
-#define I2C4_INT_SCL_Pin GPIO_PIN_6
-#define I2C4_INT_SCL_GPIO_Port GPIOB
-#define I2C4_INT_SDA_Pin GPIO_PIN_7
-#define I2C4_INT_SDA_GPIO_Port GPIOB
-#define I2C1_SCL_Pin GPIO_PIN_8
-#define I2C1_SCL_GPIO_Port GPIOB
-#define I2C1_SDA_Pin GPIO_PIN_9
-#define I2C1_SDA_GPIO_Port GPIOB
 #define POW_CTL_V5P0A_Pin GPIO_PIN_0
 #define POW_CTL_V5P0A_GPIO_Port GPIOE
 #define POW_CLT_V3P3E_Pin GPIO_PIN_1
@@ -181,7 +119,7 @@ void Error_Handler(void);
 
 #define SAVING_TIME 300000
 
-uint32_t get_fattime(void);
+void make_header(char *buf, RTC_DateTypeDef *date, RTC_TimeTypeDef *time);
 
 extern SD_HandleTypeDef hsd1;
 

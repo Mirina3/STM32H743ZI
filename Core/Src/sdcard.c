@@ -18,9 +18,9 @@ FRESULT fres;
 FILINFO fno;         /* File information object */
 DIR dir;           /* Directory object */
 
-uint32_t sd_write_buffer_head = 0; //버퍼의 head 위치
-uint16_t is_new_file = 0;
-uint8_t bf_sdflag = 0; // SD가드가 존재하지 않거나 error가 발생한 경우 0으로 초기화
+static uint16_t line_idx = 0;
+uint32_t open_file_times = 0;
+uint8_t SD_flg = 0; // SD가드가 존재하지 않거나 error가 발생한 경우 0으로 초기화
 uint8_t prpd_write_complete_flag = 1; // prpd데이터를 끝까지 모두 쓴 경우(헤더를 써야함을 알려줌)
 
 /***************************************************************************
@@ -45,14 +45,14 @@ uint8_t check_sd_card_present(void)
   
   if (card_detect == GPIO_PIN_RESET)  // LOW
   {
-    // printf("SD card detected\n");
-    bf_sdflag = 1;
+    //printf("SD card detected\n");
+    SD_flg = 1;
     return 1;  // 카드 있음
   }
   else
   {
-    // printf("SD card NOT detected\n");
-    bf_sdflag = 0;
+    //printf("SD card NOT detected\n");
+    SD_flg = 0;
     return 0;  // 카드 없음
   }
 }
@@ -68,7 +68,7 @@ uint8_t mount_sd_card(void)
 
   // 파일 시스템 마운트
   fres = f_mount(&SDFatFS, SDPath, 1);  // 마지막 인자를 1로 변경 (즉시 마운트)
-  // printf("mount result = %d\n", fres);
+
   if (fres != FR_OK)
   {
     // 마운트 실패
@@ -95,112 +95,181 @@ uint8_t mount_sd_card(void)
  * @param  filename: Name of the file to be saved
  * @retval None
  */
-void save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16_t *prpd_data, uint32_t data_len, uint16_t *pZipBuf, uint32_t pZipBufbytes, char *filename)
+FRESULT save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16_t (*prpd_data)[LINE_MAX][PHASE_MAX], uint32_t data_len)
 {  
-  if(mount_sd_card() == 1)
+  static char filename[128] = {0};
+  static char err_filename[128] = {0};
+  uint16_t PRPD_ZIP_buf[256*NUM_CH] = {0};
+  uint16_t PRPD_ZIP_TEMP_buf[256*NUM_CH] = {0};
+  uint16_t PRPD_ZIP_buf_len = 0;
+  uint16_t PRPD_ZIP_TEMP_buf_len = 0;
+  static uint8_t write_err_cnt = 0;
+
+  if(open_file_times == 0)
   {
+    if(mount_sd_card() != 1)
+    {
+      SD_flg = 0;
+      return fres;
+    }
+  
     // 남아있는 용량이 200MB 미만인지 확인
-    while(SD_GetCapacity() < 8880 && fres == FR_OK)
+    if(SD_GetCapacity() < REMAIN_CAPACITY && fres == FR_OK)
     {
       // 용량 부족
       printf("Not enough space on SD card\n");
       DeleteOldestMinFolder();
+      return fres;
       // 정해진 파일 수량 삭제 실패
       if(fres != FR_OK)
       {
-        bf_sdflag = 0;
-        return;
+        SD_flg = 0;
+        return fres;
       }
     }
 
     /*********** OPEN FILE **********/
     fres = SD_OpenFile(filename, header_info);
-    if(fres != FR_OK) return;
-    else is_new_file ++;
+    if(fres != FR_OK) return fres;
+    // else open_file_times ++;
+    }
+    open_file_times ++;
 
-    /********** WRITE DATA ***********/
-    //파일 처음 open 시 헤더 정보 작성
-    if(prpd_write_complete_flag == 1)
+    /********** WRITE HEADER DATA ***********/
+    if(open_file_times % (LINE_MAX + 1) == 1)
     {
-      fres = SD_WriteData(header_info, header_info_len, filename, header_info_len, 0);
+      fres = SD_WriteData(header_info, header_info_len, filename);
+      if(fres != FR_OK) 
+      {
+        SD_flg = 0;
+        return fres;
+      }
       prpd_write_complete_flag = 0;
     }
-    // 헤더 정보 모두 작성 시 압축된 prpd 데이터 작성
-    else 
+
+    else
     {
-      uint8_t remain_bytes = 0;
-      uint32_t even_num = pZipBufbytes / WRITE_TIME;
-      remain_bytes = pZipBufbytes % WRITE_TIME; // 나눠쓰고 싶은 횟수로 나눴을 때 남는 바이트 수
+      /*********** DATA COMPRESSION **********/
+      PRPD_ZIP_TEMP_buf_len = make_prpd_zip_temp_buf(prpd_data, PRPD_ZIP_TEMP_buf, line_idx);
+      PRPD_ZIP_buf_len = Zip_PRPD(PRPD_ZIP_buf, PRPD_ZIP_TEMP_buf, (PRPD_ZIP_TEMP_buf_len * 2));
 
-      //even_num이 홀수인 경우 짝수로 맞춤
-      if((pZipBufbytes / WRITE_TIME) & 1)
+      /********** WRITE DATA ***********/
+      fres = SD_WriteData(PRPD_ZIP_buf, PRPD_ZIP_buf_len * 2, filename);
+      // if(fres != FR_OK)
+      // {
+      //   SD_flg = 0;
+      //   return fres;
+      // }
+      if(fres == FR_OK)
       {
-        even_num = ((pZipBufbytes / WRITE_TIME) & ~1); // 짝수로 맞춤
+        line_idx++;
+        if(line_idx == LINE_MAX)
+        {
+          line_idx = 0;
+          prpd_write_complete_flag = 1; // prpd 데이터를 모두 쓴 경우
+        }
       }
-      fres = SD_WriteData(pZipBuf, even_num, filename, pZipBufbytes, remain_bytes);
     }
-    // // 헤더 정보 모두 작성 시 prpd 데이터 작성
-    // else 
-    // {
-    //   fres = SD_WriteData(prpd_data, WRITEBYTE, filename);
-    // }
 
-    /********** CLOSE FILE **********/
-    fres = f_close(&SDFile);
+    //WRITE ERROR PROCESSING
+    if(fres != FR_OK)
+    {
+      write_err_cnt++;      
+      switch(write_err_cnt)
+      {
+        case 1:
+        case 2:
+          f_close(&SDFile); // 파일 닫기
+          snprintf(err_filename, sizeof(err_filename), "%.47s_ERR.txt", filename);
+          f_rename(filename, err_filename);
+          break;
+        case 3:
+          f_close(&SDFile); // 파일 닫기
+          f_unlink(err_filename); // err_cnt = 2에서 생성한 에러 파일 삭제
+          f_rename(filename, err_filename); // ERR파일로 이름 변경
+          break;
+        // error가 4회 이상 발생한 경우 현재 PRPD 데이터 버림
+        default:
+          SD_flg = 0;
+          prpd_write_complete_flag = 1;
+          return fres;
+          break;
+      }
+      line_idx = 0;
+      open_file_times = 0; // 새 파일 생성    
+    }
+
+    // fres = f_sync(&SDFile); // 데이터 플러시
     if (fres != FR_OK)
     {
-      // 파일 닫기 실패
-      printf("Failed to close file, error: %d\n", fres);
-      bf_sdflag = 0;
-      return;
+      // 동기화 실패
+      printf("Failed to sync file, error: %d\n", fres);
+      SD_flg = 0;
+      return fres;
     }
-    return;
-  }
-  bf_sdflag = 0;
-  return;
+
+    /********** CLOSE FILE **********/
+    if(elapsed_time >= SAVING_TIME && prpd_write_complete_flag == 1)    
+    {
+      fres = f_close(&SDFile);
+      if (fres != FR_OK)
+      {
+        // 파일 닫기 실패
+        printf("Failed to close file, error: %d\n", fres);
+        SD_flg = 0;
+        return fres;
+      }
+    }
+
+    if(prpd_write_complete_flag == 1)
+    {
+      write_err_cnt = 0; // write error 카운트 초기화
+    }
+
+    return fres;
 }
 
 /***************************************************************************
  * @brief  SD 카드에 파일 열기 (새 파일 생성 또는 기존 파일 이어쓰기)
  * @param  filename: 파일 이름 버퍼
  * @param  header_info: 헤더 정보 (새 파일 생성 시 파일명 생성에 사용)
- * @param  is_new_file: 파일 열기 플래그 (1: 새 파일, 2: 기존 파일)
  * @retval FRESULT: FR_OK 성공, 그 외 실패
  */
 FRESULT SD_OpenFile(char *filename, uint16_t *header_info)
 {
   FRESULT res;
 
-  if (is_new_file == 0)
-  {
+  //PRPD 데이터를 끝까지 쓴 경우
+  // if (open_file_times == 0)
+  // {
     // 새 파일 생성
     res = GetFilename_CreateFolders(filename, header_info);
     if(res == FR_OK || res == FR_EXIST)
       res = f_open(&SDFile, filename, FA_CREATE_ALWAYS | FA_WRITE);
     else return res;
-  }
+  // }
   
-  else
-  {
-    // 기존 파일 이어쓰기
-    res = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_WRITE);
-    if (res == FR_OK)
-    {
-      res = f_lseek(&SDFile, f_size(&SDFile));
-      if (res != FR_OK)
-      {
-        // 파일 위치 이동 실패
-        printf("Failed to seek to end of file, error: %d\n", res);
-        bf_sdflag = 0;
-        return res;
-      }
-    }
-  }
+  // else
+  // {
+  //   // 기존 파일 이어쓰기
+  //   res = f_open(&SDFile, filename, FA_OPEN_ALWAYS | FA_WRITE);
+  //   if (res == FR_OK)
+  //   {
+  //     res = f_lseek(&SDFile, f_size(&SDFile));
+  //     if (res != FR_OK)
+  //     {
+  //       // 파일 위치 이동 실패
+  //       printf("Failed to seek to end of file, error: %d\n", res);
+  //       SD_flg = 0;
+  //       return res;
+  //     }
+  //   }
+  // }
 
   if (res != FR_OK)
   {
     printf("Failed to open file, error: %d\n", res);
-    bf_sdflag = 0;
+    SD_flg = 0;
   }
 
   return res;
@@ -213,75 +282,25 @@ FRESULT SD_OpenFile(char *filename, uint16_t *header_info)
  * @param  filename: 파일 이름 (시간 갱신에 사용)
  * @retval FRESULT: FR_OK 성공, 그 외 실패
  */
-FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filename, uint32_t total_data_size, uint8_t remain_bytes)
+FRESULT SD_WriteData(const uint16_t *data,uint16_t data_size, const char *filename)
 {
   FRESULT res;
   UINT byteswritten;
 
-  // 데이터 쓰기 전 캐시 청소 (Cache -> RAM) << ST-LINK끊김으로 인한 조치 효과 없는듯???
-  // SCB_CleanDCache_by_Addr((uint32_t*)(data + sd_write_buffer_head), data_size);
-
   // 데이터 쓰기
-  res = f_write(&SDFile, data + sd_write_buffer_head, data_size, &byteswritten);
+  res = f_write(&SDFile, data, data_size, &byteswritten);
 
   // 쓰기 실패 시 오류 처리
   if (res != FR_OK)
   {
-    f_close(&SDFile);
     printf("Failed to write to file, error: %d\n", res);
-    bf_sdflag = 0;
     return res;
   }
   // 작성된 바이트수가 요청한 크기와 다를 경우 오류 처리
   else if(byteswritten < data_size)
   {
-    f_close(&SDFile);
-    printf("Incomplete write: %u of %lu bytes written\n", byteswritten, data_size);
+    printf("Incomplete write: %u of %d bytes written\n", byteswritten, data_size);
     return FR_DISK_ERR;
-  }
-
-  // (PRPD데이터를 나눠쓸 횟수 + 1)의 값으로 is_new_file의 값을 나눴을 때 나머지가 1이 아닌 경우 (나머지가 1인 경우는 버퍼 head 업데이트)
-  if(is_new_file % (WRITE_TIME + 1) != 1)
-  {
-    sd_write_buffer_head += (byteswritten / 2); // 타입이 uint16_t이므로 인덱스에 추가할 때는 2로 나눈 값을 더함
-    if (sd_write_buffer_head == total_data_size / 2) // 위 내용과 마찬가지
-    {
-      sd_write_buffer_head = 0;
-      prpd_write_complete_flag = 1;
-    }
-    //WRITE_TIME번에 걸쳐서 썼지만 남아있는 데이터가 있는 경우
-    else if(is_new_file % (WRITE_TIME + 1) == 0 && sd_write_buffer_head < (total_data_size / 2))
-    {
-      if((total_data_size / WRITE_TIME) & 1)
-      {
-        res = f_write(&SDFile, data + sd_write_buffer_head, remain_bytes + WRITE_TIME, &byteswritten);
-      }
-      else
-      {
-        res = f_write(&SDFile, data + sd_write_buffer_head, remain_bytes, &byteswritten);
-      }
-      // 쓰기 실패 시 오류 처리
-      if (res != FR_OK)
-      {
-        f_close(&SDFile);
-        printf("Failed to write to file, error: %d\n", res);
-        bf_sdflag = 0;
-        return res;
-      }
-      // 작성된 바이트수가 요청한 크기와 다를 경우 오류 처리
-      else if(byteswritten < data_size)
-      {
-        f_close(&SDFile);
-        printf("Incomplete write: %u of %lu bytes written\n", byteswritten, data_size);
-        return FR_DISK_ERR;
-      }
-      sd_write_buffer_head += (byteswritten / 2);
-      if (sd_write_buffer_head == total_data_size / 2)
-      {
-        sd_write_buffer_head = 0;
-        prpd_write_complete_flag = 1;
-      }
-    }
   }
 
   // 파일 시간 갱신
@@ -289,7 +308,7 @@ FRESULT SD_WriteData(const uint16_t *data,uint32_t data_size, const char *filena
   if (res != FR_OK)
   {
     printf("Failed to update file time, error: %d\n", res);
-    bf_sdflag = 0;
+    SD_flg = 0;
     return res;
   }
 
@@ -333,7 +352,7 @@ uint32_t SD_GetCapacity(void)
     else
     {
       printf("f_getfree error: %d\n", fres);
-      bf_sdflag = 0;
+      SD_flg = 0;
       return 0;
     }
 }
@@ -400,7 +419,7 @@ FRESULT GetFilename_CreateFolders(char* filename, uint16_t* header_info)
   if (res != FR_OK && res != FR_EXIST)
     {
         printf("Failed to create folders: %d\n", res);
-        bf_sdflag = 0;
+        SD_flg = 0;
         return res;
     }
 
@@ -508,7 +527,7 @@ void DeleteOldestMinFolder(void)
   }
   snprintf(tmpPath, sizeof(tmpPath), "%s", oldestName);
   strcpy(yearPath, tmpPath);
-  // printf("Oldest year: %s\n", yearPath);
+  //printf("Oldest year: %s\n", yearPath);
 
   // 2. 가장 오래된 월 폴더 찾기
   fres = FindOldestSubfolder(yearPath, oldestName);
@@ -520,7 +539,7 @@ void DeleteOldestMinFolder(void)
   }
   snprintf(tmpPath, sizeof(tmpPath), "%s/%s", yearPath, oldestName);
   strcpy(monthPath, tmpPath);
-  // printf("Oldest month: %s\n", monthPath);
+  //printf("Oldest month: %s\n", monthPath);
 
   // 3. 가장 오래된 일 폴더 찾기
   fres = FindOldestSubfolder(monthPath, oldestName);
@@ -536,7 +555,7 @@ void DeleteOldestMinFolder(void)
   }
   snprintf(tmpPath, sizeof(tmpPath), "%s/%s", monthPath, oldestName);
   strcpy(dayPath, tmpPath);
-  // printf("Oldest day: %s\n", dayPath);
+  //printf("Oldest day: %s\n", dayPath);
 
   // 4. 가장 오래된 시간 폴더 찾기
   fres = FindOldestSubfolder(dayPath, oldestName);
@@ -807,6 +826,113 @@ uint8_t CountItemsInFolder(const char *path)
 }
 
 /***************************************************************************
+ * @brief PRPD 데이터의 같은 행을 하나의 버퍼에 이어붙이는 함수
+ * @param prpd_data: PRPD 데이터 배열
+ * @param PRPD_ZIP_TEMP_buf: 이어붙인 데이터를 저장할 버퍼
+ * @param row: 이어붙일 행 인덱스
+ * @retval None
+ */
+uint16_t make_prpd_zip_temp_buf(uint16_t (*prpd_data)[LINE_MAX][PHASE_MAX], uint16_t *PRPD_ZIP_TEMP_buf, uint8_t row)
+{
+  uint16_t PRPD_ZIP_TEMP_buf_idx = 0;
+
+  // 각각의 채널의 같은 행을 하나의 버퍼에 이어붙임
+  for(uint8_t i = 0; i < NUM_CH; i++)
+  {
+    memcpy(&PRPD_ZIP_TEMP_buf[PRPD_ZIP_TEMP_buf_idx], &prpd_data[i][row][0], sizeof(uint16_t) * PHASE_MAX);
+    PRPD_ZIP_TEMP_buf_idx += PHASE_MAX;
+  }
+
+  return PRPD_ZIP_TEMP_buf_idx;
+}
+
+
+// /***************************************************************************
+//   * @brief PRPD data compression Function
+//   * @note : PRPD
+//   * @param None
+//   * @retval None
+//   */
+// uint16_t data_compression(uint16_t *pZIP_buf, uint16_t *pPD_Data, uint16_t line, uint8_t ch_max, uint16_t line_max, uint16_t phase_max)
+// {
+//   uint16_t cnt_data = 0;
+//   uint16_t uint16_temp = 0;
+//   uint16_t zip_cnt = 0;
+
+//   // PRPD Line 압축
+//   pZIP_buf[cnt_data] = line + 1;
+//   cnt_data++;
+//   uint16_t length_phase = ch_max * phase_max;
+//   for(uint16_t phase=0; phase<length_phase; phase++)
+//   {
+//     if(phase == 0)
+//     {
+//       uint16_temp = pPD_Data[phase];
+//       zip_cnt = 0;    // 압축 카운터 리셋
+//     }
+//     // 앞 데이터(uint16_temp)와 비교
+//     else if(uint16_temp == pPD_Data[phase])
+//     {
+//       // 앞 데이터과 같으면 같은 값 카운터(zip_cnt)를 하나 증가
+//       zip_cnt++;
+//       // 카운트 값을 pZIP_buf[cnt_data] 위치에 저장하고, pZIP_buf[cnt_data+1]에 찾은 값(prpd_data[cnt_addr])을 저장
+//       pZIP_buf[cnt_data]   = (zip_cnt + 1) | 0x8000;
+//       pZIP_buf[cnt_data+1] = pPD_Data[phase];
+//     }
+//     else
+//     { // 현재 데이터가 이전 데이터와 다르고
+//       // 이전 비교에서 동등 카운트가 있었는가?
+//       if(zip_cnt == 0)    // 0: 압축이 안됨
+//       {
+//         // 현재 데이터를 다음 데이터와 비교할 버퍼(uint16_temp)에 저장하고, 앞 데이터와 다른 현재 데이터을 pZIP_buf[cnt_data]에 저장
+//         pZIP_buf[cnt_data] = uint16_temp;
+//         // 비압축 데이터를 전송 버퍼에 저장하고
+//         uint16_temp = pPD_Data[phase];
+//         // pZIP_buf 배열 위치를 다음 주소로 하나 이동
+//         cnt_data++;
+//       }
+//       else if(zip_cnt == 1)    // 1: 압축해도 안해도 2Word 임으로 압축안함
+//       {
+//         // 압축 카운터 저장위치에 원래 들어가야 할 이전 비압축 데이터를 저장하고
+//         pZIP_buf[cnt_data]   = uint16_temp;
+//         // 현재 비압축 데이터를 전송 버퍼에 저장하고
+//         pZIP_buf[cnt_data+1] = uint16_temp;
+//         // 현재 데이터를 다음 데이터와 비교할 버퍼(uint16_temp)에 저장
+//         uint16_temp = pPD_Data[phase];
+//         // 위에서 1회 앞축 시도가 있었기 때문에 앞에서 차지한 배열 위치에서 pZIP_buf 2Word 이동
+//         cnt_data += 2;
+//       }
+//       else
+//       {
+//         // zip_cnt 2 이상부터는 압축이 일어났으며, for문 시작부분에서 카운터 값과 데이터 값을 이미 저장했음
+//         // 현재 데이터를 다음 데이터와 비교할 버퍼(uint16_temp)에 저장
+//         uint16_temp = pPD_Data[phase];
+//         // 앞에서 진행한 압축 데이터 저장위치에서 다음 위치로 2Word 넘김
+//         cnt_data += 2;
+//       }
+//       // 이번 데이터가 앞 데이터와 다름으로 압축 카운트 초기화하고 다시 시작
+//       zip_cnt = 0;
+//     }
+//   }
+//   // 마지막 압축이 Phase 마지막 부분에서 일어났으나 2개이면 비압축으로 저장하고 Data부분 2를 증가시킴.
+//   if(zip_cnt == 1)
+//   {
+//     // 압축 카운터 저장위치에 원래 들어가야 할 이전 비압축 데이터를 저장하고
+//     pZIP_buf[cnt_data]   = uint16_temp;
+//     // 현재 비압축 데이터를 전송 버퍼에 저장하고
+//     pZIP_buf[cnt_data+1] = uint16_temp;
+//     // cnt_data += 2;
+//   }
+//   if(zip_cnt != 0)
+//   {
+//     // 마지막 압축이 Phase 마지막 부분에서 일어났으면 cnt_data를 압축코드와 Data부분 2를 증가시킴.
+//     // cnt_data += 2;
+//   }
+//   return cnt_data;
+// }
+
+
+/***************************************************************************
   * @brief  PRPD 데이터 압축 함수
   * @param  pZipBuf   : 압축된 데이터가 저장될 버퍼
   * @param  pRawData  : 원본 PRPD 데이터
@@ -892,8 +1018,7 @@ uint32_t Zip_PRPD(uint16_t *pZipBuf, uint16_t *pRawData, uint32_t data_bytes)
  */
 void SD_ForceReset(void)
 {
-  sd_write_buffer_head = 0;
-  is_new_file = 0;
+  open_file_times = 0;
   prpd_write_complete_flag = 1;
 
   //드라이버 언마운트 및 재연결

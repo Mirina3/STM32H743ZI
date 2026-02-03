@@ -9,21 +9,11 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
--include Middlewares/Third_Party/LwIP/src/netif/ppp/subdir.mk
--include Middlewares/Third_Party/LwIP/src/netif/subdir.mk
--include Middlewares/Third_Party/LwIP/src/core/ipv6/subdir.mk
--include Middlewares/Third_Party/LwIP/src/core/ipv4/subdir.mk
--include Middlewares/Third_Party/LwIP/src/core/subdir.mk
--include Middlewares/Third_Party/LwIP/src/apps/mqtt/subdir.mk
--include Middlewares/Third_Party/LwIP/src/api/subdir.mk
 -include Middlewares/Third_Party/FatFs/src/option/subdir.mk
 -include Middlewares/Third_Party/FatFs/src/subdir.mk
--include LWIP/Target/subdir.mk
--include LWIP/App/subdir.mk
 -include FATFS/Target/subdir.mk
 -include FATFS/App/subdir.mk
 -include Drivers/STM32H7xx_HAL_Driver/Src/subdir.mk
--include Drivers/BSP/Components/lan8742/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
 -include objects.mk
@@ -74,8 +64,8 @@ all: main-build
 main-build: CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf secondary-outputs
 
 # Tool invocations
-CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.map: $(OBJS) $(USER_OBJS) C:\MCU\MCU_5_SDcard_copy_polling\STM32H743VITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\MCU\MCU_5_SDcard_copy_polling\STM32H743VITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.map: $(OBJS) $(USER_OBJS) C:\MCU\MCU_5_SDcard\STM32H743VITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\MCU\MCU_5_SDcard\STM32H743VITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="CMS_H743VI_PD_3CH_LWIP_SERVER_IDE_V21.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
