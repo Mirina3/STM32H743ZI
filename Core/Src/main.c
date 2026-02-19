@@ -97,17 +97,10 @@ static void MX_SDMMC1_SD_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// __attribute__((section(".prpd_data_buffer"))) uint16_t prpd_data_buffer[TOTAL_BYTE / 2];
 __attribute__((section(".prpd_data_buffer"))) uint16_t prpd_data_buffer[NUM_CH][LINE_MAX][PHASE_MAX];
-
-// __attribute__((section(".sd_buffer"), aligned(8))) uint16_t pZipBuf[5120];
-
-// __attribute__((section(".sd_buffer"), aligned(8))) char temp_header[64];
-
-// __attribute__((section(".sd_buffer"), aligned(8))) uint16_t file_header_temp_buffer[32];
-
 //test
 uint32_t start_time = 0, end_time = 0, elapsed_time = 0;
+uint8_t get_prpd_data_complete_flag = 1;
 //test
 /* USER CODE END 0 */
 
@@ -172,21 +165,36 @@ int main(void)
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
 
-  FRESULT fres = FR_OK;
   uint8_t sd_init_done_flg = 0;
   HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
   HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
 
   /********** FOR TEST ***********/
-  memset(&prpd_data_buffer[0][0][0], '1', sizeof(uint16_t) * LINE_MAX * PHASE_MAX);
-  memset(&prpd_data_buffer[1][0][0], '2', sizeof(uint16_t) * LINE_MAX * PHASE_MAX);
-  memset(&prpd_data_buffer[2][0][0], '3', sizeof(uint16_t) * LINE_MAX * PHASE_MAX);
-  memset(&prpd_data_buffer[3][0][0], '4', sizeof(uint16_t) * LINE_MAX * PHASE_MAX);
+  //버퍼 난수로 채움
+  for(uint8_t i=0; i<NUM_CH; i++)
+  {
+    for(uint32_t j=0; j<LINE_MAX; j++)
+    {
+      for(uint32_t k=0; k<PHASE_MAX; k++)
+      {
+        prpd_data_buffer[i][j][k] = (uint16_t)(rand() % 10000);
+      }
+    }
+  }
+
+  // memset(&prpd_data_buffer[0][0][0], '1', sizeof(uint16_t) * LINE_MAX * PHASE_MAX);
+  // memset(&prpd_data_buffer[1][0][0], '2', sizeof(uint16_t) * LINE_MAX * PHASE_MAX);
+  // memset(&prpd_data_buffer[2][0][0], '3', sizeof(uint16_t) * LINE_MAX * PHASE_MAX);
+  // memset(&prpd_data_buffer[3][0][0], '4', sizeof(uint16_t) * LINE_MAX * PHASE_MAX);
 
   static char temp_header[64] = {0};
   static uint16_t file_header_temp_buffer[32] = {0};
   /*******************************/
+  const uint32_t TARGET_PERIOD = 10000; // 10초 (10000ms)
+  /* USER CODE END 2 */
 
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
 //  HAL_Delay(500);
   /* USER CODE END 2 */
 
@@ -194,14 +202,26 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 //  HAL_GPIO_WritePin(HALT_LED_GPIO_Port, HALT_LED_Pin, GPIO_PIN_RESET); // Halt LED ON
 
+      //  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+      // HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+      // make_header(temp_header, &sDate, &sTime);
+      // memcpy(file_header_temp_buffer, temp_header, sizeof(temp_header));
+
   while (1)
   {
-    if(prpd_write_complete_flag == 1)
+    if(get_prpd_data_complete_flag == 0) 
     {
-      HAL_GPIO_TogglePin(RUN_LED_GPIO_Port, RUN_LED_Pin);
-      printf("elapsed_time: %lu ms\n", elapsed_time);
+      HAL_GPIO_WritePin(RUN_LED_GPIO_Port, RUN_LED_Pin, GPIO_PIN_SET);
+      uint32_t delay_time = 0;
+      if((end_time-start_time) < TARGET_PERIOD)
+      {
+          delay_time = TARGET_PERIOD - (end_time-start_time);
+      }
+      HAL_Delay(delay_time);
+      start_time = HAL_GetTick();
     }
-    if(1) // 측정완료 flag로 변경
+    get_prpd_data_complete_flag = 1; // 테스트용 prpd측정완료 플래그 강제 설정
+    if(get_prpd_data_complete_flag == 1 || prpd_write_complete_flag == 1) // 측정완료 flag로 변경
     {
       if(SD_flg == 1)
       {
@@ -210,20 +230,19 @@ int main(void)
         HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
         make_header(temp_header, &sDate, &sTime);
         memcpy(file_header_temp_buffer, temp_header, sizeof(temp_header));
+        HAL_GPIO_TogglePin(RUN_LED_GPIO_Port, RUN_LED_Pin);
         /*******************************/ 
 
-        // 저장한 시간이 SAVING_TIME 이하인 경우 기존 파일에 계속 저장
-        if(elapsed_time < SAVING_TIME || prpd_write_complete_flag == 0)
-        {
-          fres = save_file_to_sdcard(file_header_temp_buffer, sizeof(file_header_temp_buffer),prpd_data_buffer, sizeof(prpd_data_buffer));
-          end_time = HAL_GetTick();
-          elapsed_time += (end_time - start_time);
-          start_time = end_time;
-        }
+        start_saving(file_header_temp_buffer, sizeof(file_header_temp_buffer),prpd_data_buffer, sizeof(prpd_data_buffer));
+        end_time = HAL_GetTick();
+//        printf("\nData saving time: %lu ms\n", end_time - start_time);
+        elapsed_time += (end_time - start_time);
+        start_time = end_time;
         // is_new_file를 초기화 함으로써 새파일에 저장할 준비
-        else
+        if(prpd_write_complete_flag == 1)
         {
-          printf("File saved successfully\n\n");
+//          printf("\nelapsed_time: %lu ms\n", elapsed_time);
+          printf("\nFile saved successfully\n\n");
           elapsed_time = 0;
           open_file_times = 0;
         }
@@ -556,7 +575,28 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+// sprintf 없이 헤더 생성
+void make_header(char *buf, RTC_DateTypeDef *date, RTC_TimeTypeDef *time)
+{
+  buf[0] = '$'; buf[1] = '$'; buf[2] = '$';
+  buf[3] = '$'; buf[4] = '$'; buf[5] = '$';
+  
+  buf[6] = '0' + (date->Year / 10);
+  buf[7] = '0' + (date->Year % 10);
+  buf[8] = '0' + (date->Month / 10);
+  buf[9] = '0' + (date->Month % 10);
+  buf[10] = '0' + (date->Date / 10);
+  buf[11] = '0' + (date->Date % 10);
+  buf[12] = '0' + (time->Hours / 10);
+  buf[13] = '0' + (time->Hours % 10);
+  buf[14] = '0' + (time->Minutes / 10);
+  buf[15] = '0' + (time->Minutes % 10);
+  buf[16] = '0' + (time->Seconds / 10);
+  buf[17] = '0' + (time->Seconds % 10);
+  
+  memcpy(&buf[18], "1234567890", 10);
+  buf[28] = '\0';
+}
 /* USER CODE END 4 */
 
  /* MPU Configuration */
@@ -655,31 +695,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-}
 
-// sprintf 없이 헤더 생성
-void make_header(char *buf, RTC_DateTypeDef *date, RTC_TimeTypeDef *time)
-{
-  buf[0] = '$'; buf[1] = '$'; buf[2] = '$';
-  buf[3] = '$'; buf[4] = '$'; buf[5] = '$';
-  
-  buf[6] = '0' + (date->Year / 10);
-  buf[7] = '0' + (date->Year % 10);
-  buf[8] = '0' + (date->Month / 10);
-  buf[9] = '0' + (date->Month % 10);
-  buf[10] = '0' + (date->Date / 10);
-  buf[11] = '0' + (date->Date % 10);
-  buf[12] = '0' + (time->Hours / 10);
-  buf[13] = '0' + (time->Hours % 10);
-  buf[14] = '0' + (time->Minutes / 10);
-  buf[15] = '0' + (time->Minutes % 10);
-  buf[16] = '0' + (time->Seconds / 10);
-  buf[17] = '0' + (time->Seconds % 10);
-  
-  memcpy(&buf[18], "1234567890", 10);
-  buf[28] = '\0';
-}
   /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

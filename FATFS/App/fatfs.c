@@ -55,7 +55,7 @@ void MX_FATFS_Init(void)
   * @param  None
   * @retval Time in DWORD
   */
-DWORD get_fattime(void) // f_open / close / sync / mkdir / utime 함수에서 자동 호출
+DWORD get_fattime(void)
 {
   /* USER CODE BEGIN get_fattime */
     RTC_TimeTypeDef sTime = {0};

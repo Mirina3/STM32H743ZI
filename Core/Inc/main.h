@@ -117,8 +117,6 @@ void Error_Handler(void);
 #define POW_CLT_V5P0C_OFF() HAL_GPIO_WritePin(POW_CLT_V5P0C_GPIO_Port, POW_CLT_V5P0C_Pin, GPIO_PIN_RESET)   // 외부센서 통신전원 5.0V 전원 OFF
 #define POW_CLT_V5P0C_ON()  HAL_GPIO_WritePin(POW_CLT_V5P0C_GPIO_Port, POW_CLT_V5P0C_Pin, GPIO_PIN_SET)     // 외부센서 통신전원 5.0V 전원 ON
 
-#define SAVING_TIME 300000
-
 void make_header(char *buf, RTC_DateTypeDef *date, RTC_TimeTypeDef *time);
 
 extern SD_HandleTypeDef hsd1;

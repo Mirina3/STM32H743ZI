@@ -11,17 +11,271 @@
 #include <stdlib.h>
 #include "sdcard.h"
 
-extern FATFS SDFatFS;  /* File system object for SD logical drive */
-extern FIL SDFile;    /* File object for SD */
-extern char SDPath[4]; /* SD logical drive path */
+// #define SD_MAKE_RESULT(func, fres)  (((func) << 8) | (fres))
+
+extern FATFS SDFatFS;    /* File system object for SD logical drive */
+extern FIL SDFile;       /* File object for SD */
+extern char SDPath[4];   /* SD logical drive path */
 FRESULT fres;
-FILINFO fno;         /* File information object */
-DIR dir;           /* Directory object */
+FILINFO fno;             /* File information object */
+DIR dir;                 /* Directory object */
 
 static uint16_t line_idx = 0;
 uint32_t open_file_times = 0;
-uint8_t SD_flg = 0; // SD가드가 존재하지 않거나 error가 발생한 경우 0으로 초기화
+uint8_t SD_flg = 0;                   // SD가드가 존재하지 않거나 error가 발생한 경우 0으로 초기화
 uint8_t prpd_write_complete_flag = 1; // prpd데이터를 끝까지 모두 쓴 경우(헤더를 써야함을 알려줌)
+
+// typedef uint16_t SD_RESULT ;          // 삳위 8비트 함수ID 하위 8비트 FRESULT
+// SD_RESULT result;
+
+// // 함수 ID 정의
+// typedef enum {
+//     SD_OK           = 0x00,
+//     SD_OPEN         = 0x01,
+//     SD_CLOSE        = 0x02,
+//     SD_WRITE        = 0x03,
+//     SD_SYNC         = 0x04,
+//     SD_OPEN_DIR     = 0x05,
+//     SD_CLOSE_DIR    = 0x06,
+//     SD_READ_DIR     = 0x07,
+//     SD_MAKE_DIR     = 0x08,
+//     SD_UNLINK       = 0x09,
+//     SD_RENAME       = 0x0A,
+//     SD_UPDATE_TIME  = 0x0B,
+//     SD_GETFREE      = 0x0C,
+//     SD_MOUNT        = 0x0D,
+//     SD_WRITE_LEN    = 0x0E,
+// } SD_FUNC_ID;
+
+// uint16_t save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16_t (*prpd_data)[LINE_MAX][PHASE_MAX], uint32_t data_len)
+// {
+//   if(get_prpd_data_complete_flag == 1 || prpd_write_complete_flag == 1)
+//   {
+//     if(SD_flg == 1)
+//     {
+//       fres = save_file_to_sdcard(file_header_temp_buffer, sizeof(file_header_temp_buffer),prpd_data_buffer, sizeof(prpd_data_buffer));
+//       if(prpd_write_complete_flag == 1) open_file_times = 0; // is_new_file를 초기화 함으로써 새파일에 저장할 준비
+//     }
+//     // SD카드 연결이 끊기거나 sd카드 관련 error가 발생한 경우 재초기화
+//     else
+//     {
+//       printf("error\n");
+//       check_sd_card_present();
+
+//       // SD카드가 제거된 상태로 MX_SDMMC1_SD_Init()를 하게 되면 ERROR_HANDLER로 빠지므로 SD카드가 삽입된 상태에서 최초 1회 수행
+//       if(SD_flg == 1 && sd_init_done_flg == 0)
+//       {
+//         MX_SDMMC1_SD_Init();
+//         sd_init_done_flg = 1;
+//       }
+//       return result;
+//     }
+//   }
+//   return 0;
+// }
+
+/***************************************************************************
+ * @brief  process of Save a file to the SD card
+ * @param  header_info: Pointer to header information
+ * @param  header_info_len: Length of header information in bytes
+ * @param  prpd_data: Pointer to PRPD data array
+ * @param  data_len: Length of PRPD data in bytes
+ * @retval FRESULT: FR_OK on success, otherwise error code
+ */
+void start_saving(uint16_t *header_info, uint32_t header_info_len, uint16_t (*prpd_data)[LINE_MAX][PHASE_MAX], uint32_t data_len)
+{  
+  static char filename[128] = {0};
+  static char err_filename[128] = {0};
+  // uint16_t PRPD_ZIP_buf[256*NUM_CH] = {0};
+  // uint16_t PRPD_ZIP_TEMP_buf[256*NUM_CH] = {0};
+  uint16_t PRPD_ZIP_buf[256*NUM_CH*2] = {0};
+  uint16_t PRPD_ZIP_TEMP_buf[256*NUM_CH*2] = {0};
+  uint16_t PRPD_ZIP_buf_len = 0;
+  uint16_t PRPD_ZIP_TEMP_buf_len = 0;
+  static uint8_t write_err_cnt = 0;
+
+  if(open_file_times == 0)
+  {
+    fres = mount_sd_card();
+    if(fres != FR_OK) goto ERROR_EXIT;
+  
+    // 남아있는 용량이 200MB 미만인지 확인
+    if(SD_GetCapacity() < REMAIN_CAPACITY && fres == FR_OK)
+    {
+      if(fres != FR_OK) goto ERROR_EXIT;
+      // 용량 부족
+      printf("Not enough space on SD card\n");
+      fres = DeleteOldestFolder();
+      // 정해진 파일 수량 삭제 실패
+      if(fres != FR_OK) goto ERROR_EXIT;
+    }
+
+    /******************************************** OPEN FILE *******************************************/
+    fres = SD_OpenFile(filename, header_info);
+    if(fres != FR_OK) goto ERROR_EXIT;
+    }
+    open_file_times ++;
+
+    /*************************************** WRITE HEADER DATA *****************************************/
+    if(open_file_times == 1)
+    {
+      fres = SD_WriteData(header_info, header_info_len, filename);
+      if(fres == FR_OK)
+      {
+        prpd_write_complete_flag = 0;
+      }
+    }
+
+    // else if(open_file_times > 1)
+    // {
+    //   /**************************************** DATA COMPRESSION ***************************************/
+    //   PRPD_ZIP_TEMP_buf_len = make_prpd_zip_temp_buf(prpd_data, PRPD_ZIP_TEMP_buf, line_idx);
+    //   PRPD_ZIP_buf_len = Zip_PRPD(PRPD_ZIP_buf, PRPD_ZIP_TEMP_buf, (PRPD_ZIP_TEMP_buf_len * 2));
+
+    //   /********************************** WRITE PRPD DATA **********************************************/
+    //   fres = SD_WriteData(PRPD_ZIP_buf, PRPD_ZIP_buf_len * 2, filename);
+    //   if(fres == FR_OK)
+    //   {
+    //     line_idx++;
+    //     if(line_idx == LINE_MAX)
+    //     {
+    //       line_idx = 0;
+    //       get_prpd_data_complete_flag = 0;
+    //       prpd_write_complete_flag = 1; // prpd 데이터를 모두 쓴 경우
+    //     }
+    //   }
+    // }
+
+    else if(open_file_times > 1)
+    {
+      for(uint8_t time = 0; time < WRITE_TIME; time++) // 한번에 2라인씩 저장
+      {
+        /**************************************** DATA COMPRESSION ***************************************/
+        PRPD_ZIP_TEMP_buf_len = make_prpd_zip_temp_buf(prpd_data, PRPD_ZIP_TEMP_buf, line_idx);
+        PRPD_ZIP_buf_len = Zip_PRPD(PRPD_ZIP_buf, PRPD_ZIP_TEMP_buf, (PRPD_ZIP_TEMP_buf_len * 2));
+
+        /********************************** WRITE PRPD DATA **********************************************/
+        fres = SD_WriteData(PRPD_ZIP_buf, PRPD_ZIP_buf_len * 2, filename);
+        if(fres == FR_OK)
+        {
+          line_idx++;
+          if(line_idx == LINE_MAX)
+          {
+            line_idx = 0;
+            get_prpd_data_complete_flag = 0;
+            prpd_write_complete_flag = 1; // prpd 데이터를 모두 쓴 경우
+            break;
+          }
+        }
+      }
+    }
+
+    //WRITE ERROR PROCESSING
+    if(fres != FR_OK)
+    {
+      write_err_cnt++;      
+
+      // error가 1회 발생한 경우 기존파일명_ERR로 변경
+      if(write_err_cnt == 1)
+      {
+        fres = f_close(&SDFile); // 파일 닫기
+        if(fres != FR_OK) 
+        {
+          printf("Failed to close file after write error, error: %d\n", fres);
+          // SD_RESULT result = SD_MAKE_RESULT(SD_CLOSE, fres);
+          goto ERROR_EXIT;
+        }
+
+        snprintf(err_filename, sizeof(err_filename), "%.55s_ERR.txt", filename);
+
+        fres = f_rename(filename, err_filename);
+        if(fres != FR_OK) 
+        {
+          printf("Failed to rename file after write error, error: %d\n", fres);
+          // SD_RESULT result = SD_MAKE_RESULT(SD_RENAME, fres);
+          goto ERROR_EXIT;
+        }
+      }
+
+      // error가 2회 또는 3회 발생한 경우 기존 ERR파일을 지우고 새 ERR파일로 변경
+      else if(write_err_cnt == 2 || write_err_cnt == 3)
+      {
+        fres = f_close(&SDFile); // 파일 닫기
+        if(fres != FR_OK) 
+        {
+          printf("Failed to close file after write error, error: %d\n", fres);
+          // SD_RESULT result = SD_MAKE_RESULT(SD_CLOSE, fres);
+          goto ERROR_EXIT;
+        }
+
+        snprintf(err_filename, sizeof(err_filename), "%.55s_ERR.txt", filename);
+
+        fres = f_unlink(err_filename); // 기존에 동일 이름의 ERR 파일이 존재하면 삭제
+        if(fres != FR_OK) 
+        {
+          printf("Failed to delete existing ERR file after write error, error: %d\n", fres);
+          // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, fres);
+          goto ERROR_EXIT;
+        }
+
+        fres = f_rename(filename, err_filename);
+        if(fres != FR_OK) 
+        {
+          printf("Failed to rename file after write error, error: %d\n", fres);
+          // SD_RESULT result = SD_MAKE_RESULT(SD_RENAME, fres);
+          goto ERROR_EXIT;
+        }
+        
+        if(write_err_cnt == 3)
+        {
+          write_err_cnt = 0;
+          SD_flg = 0; // 3회 연속 error 발생 시 SD관련 재초기화
+        }
+      }
+      line_idx = 0;
+      open_file_times = 0; // 새 파일 생성
+      return;
+    }
+
+    else
+    {
+      // 파일 시간 갱신
+      fres = f_utime(filename, &fno);
+      if (fres != FR_OK)
+      {
+        printf("Failed to update file time, error: %d\n", fres);
+        // SD_RESULT result = SD_MAKE_RESULT(SD_UPDATE_TIME, fres);
+        goto ERROR_EXIT;
+      }
+    }
+    // fres = f_sync(&SDFile); // 데이터 플러시
+    // if (fres != FR_OK)
+    // {
+    //   // 동기화 실패
+    //   printf("Failed to sync file, error: %d\n", fres);
+    //   SD_flg = 0;
+    //   return fres;
+    // }
+
+    /********** CLOSE FILE **********/
+    if(prpd_write_complete_flag == 1)
+    {
+      fres = f_close(&SDFile);
+      if (fres != FR_OK)
+      {
+        // 파일 닫기 실패
+        printf("Failed to close file, error: %d\n", fres);
+        // SD_RESULT result = SD_MAKE_RESULT(SD_CLOSE, fres);
+        goto ERROR_EXIT;
+      }
+    }
+    return;
+
+    ERROR_EXIT:
+    SD_flg = 0;
+    return;
+}
+
 
 /***************************************************************************
  * @brief  Check if SD card is present
@@ -60,174 +314,26 @@ uint8_t check_sd_card_present(void)
 /***************************************************************************
  * @brief  SD card mount function
  * @param  None
- * @retval 1: Success, 0: Fail
+ * @retval 
  */
-uint8_t mount_sd_card(void)
+FRESULT mount_sd_card(void)
 {
-  DSTATUS d_status;
+  FRESULT res;
 
   // 파일 시스템 마운트
-  fres = f_mount(&SDFatFS, SDPath, 1);  // 마지막 인자를 1로 변경 (즉시 마운트)
+  res = f_mount(&SDFatFS, SDPath, 1);  // 마지막 인자를 1로 변경 (즉시 마운트)
 
-  if (fres != FR_OK)
+  if (res != FR_OK)
   {
     // 마운트 실패
     printf("Failed to mount filesystem, error: %d\n", fres);
-
-    return 0;
+    // SD_RESULT result = SD_MAKE_RESULT(SD_MOUNT, fres);
+    return res;
   }
 
-  // 디스크 상태 확인
-  d_status = disk_status(0);
-  if (d_status != RES_OK)
-  {
-    // 디스크 초기화 실패
-    printf("Disk not ready, status: 0x%02X\n", d_status);
-
-    return 0;
-  }
-
-  return 1;  // 마운트 성공
+  return res;  // 마운트 성공
 }
 
-/***************************************************************************
- * @brief  Save a file to the SD card
- * @param  filename: Name of the file to be saved
- * @retval None
- */
-FRESULT save_file_to_sdcard(uint16_t *header_info, uint32_t header_info_len, uint16_t (*prpd_data)[LINE_MAX][PHASE_MAX], uint32_t data_len)
-{  
-  static char filename[128] = {0};
-  static char err_filename[128] = {0};
-  uint16_t PRPD_ZIP_buf[256*NUM_CH] = {0};
-  uint16_t PRPD_ZIP_TEMP_buf[256*NUM_CH] = {0};
-  uint16_t PRPD_ZIP_buf_len = 0;
-  uint16_t PRPD_ZIP_TEMP_buf_len = 0;
-  static uint8_t write_err_cnt = 0;
-
-  if(open_file_times == 0)
-  {
-    if(mount_sd_card() != 1)
-    {
-      SD_flg = 0;
-      return fres;
-    }
-  
-    // 남아있는 용량이 200MB 미만인지 확인
-    if(SD_GetCapacity() < REMAIN_CAPACITY && fres == FR_OK)
-    {
-      // 용량 부족
-      printf("Not enough space on SD card\n");
-      DeleteOldestMinFolder();
-      return fres;
-      // 정해진 파일 수량 삭제 실패
-      if(fres != FR_OK)
-      {
-        SD_flg = 0;
-        return fres;
-      }
-    }
-
-    /*********** OPEN FILE **********/
-    fres = SD_OpenFile(filename, header_info);
-    if(fres != FR_OK) return fres;
-    // else open_file_times ++;
-    }
-    open_file_times ++;
-
-    /********** WRITE HEADER DATA ***********/
-    if(open_file_times % (LINE_MAX + 1) == 1)
-    {
-      fres = SD_WriteData(header_info, header_info_len, filename);
-      if(fres != FR_OK) 
-      {
-        SD_flg = 0;
-        return fres;
-      }
-      prpd_write_complete_flag = 0;
-    }
-
-    else
-    {
-      /*********** DATA COMPRESSION **********/
-      PRPD_ZIP_TEMP_buf_len = make_prpd_zip_temp_buf(prpd_data, PRPD_ZIP_TEMP_buf, line_idx);
-      PRPD_ZIP_buf_len = Zip_PRPD(PRPD_ZIP_buf, PRPD_ZIP_TEMP_buf, (PRPD_ZIP_TEMP_buf_len * 2));
-
-      /********** WRITE DATA ***********/
-      fres = SD_WriteData(PRPD_ZIP_buf, PRPD_ZIP_buf_len * 2, filename);
-      // if(fres != FR_OK)
-      // {
-      //   SD_flg = 0;
-      //   return fres;
-      // }
-      if(fres == FR_OK)
-      {
-        line_idx++;
-        if(line_idx == LINE_MAX)
-        {
-          line_idx = 0;
-          prpd_write_complete_flag = 1; // prpd 데이터를 모두 쓴 경우
-        }
-      }
-    }
-
-    //WRITE ERROR PROCESSING
-    if(fres != FR_OK)
-    {
-      write_err_cnt++;      
-      switch(write_err_cnt)
-      {
-        case 1:
-        case 2:
-          f_close(&SDFile); // 파일 닫기
-          snprintf(err_filename, sizeof(err_filename), "%.47s_ERR.txt", filename);
-          f_rename(filename, err_filename);
-          break;
-        case 3:
-          f_close(&SDFile); // 파일 닫기
-          f_unlink(err_filename); // err_cnt = 2에서 생성한 에러 파일 삭제
-          f_rename(filename, err_filename); // ERR파일로 이름 변경
-          break;
-        // error가 4회 이상 발생한 경우 현재 PRPD 데이터 버림
-        default:
-          SD_flg = 0;
-          prpd_write_complete_flag = 1;
-          return fres;
-          break;
-      }
-      line_idx = 0;
-      open_file_times = 0; // 새 파일 생성    
-    }
-
-    // fres = f_sync(&SDFile); // 데이터 플러시
-    if (fres != FR_OK)
-    {
-      // 동기화 실패
-      printf("Failed to sync file, error: %d\n", fres);
-      SD_flg = 0;
-      return fres;
-    }
-
-    /********** CLOSE FILE **********/
-    if(elapsed_time >= SAVING_TIME && prpd_write_complete_flag == 1)    
-    {
-      fres = f_close(&SDFile);
-      if (fres != FR_OK)
-      {
-        // 파일 닫기 실패
-        printf("Failed to close file, error: %d\n", fres);
-        SD_flg = 0;
-        return fres;
-      }
-    }
-
-    if(prpd_write_complete_flag == 1)
-    {
-      write_err_cnt = 0; // write error 카운트 초기화
-    }
-
-    return fres;
-}
 
 /***************************************************************************
  * @brief  SD 카드에 파일 열기 (새 파일 생성 또는 기존 파일 이어쓰기)
@@ -245,7 +351,16 @@ FRESULT SD_OpenFile(char *filename, uint16_t *header_info)
     // 새 파일 생성
     res = GetFilename_CreateFolders(filename, header_info);
     if(res == FR_OK || res == FR_EXIST)
-      res = f_open(&SDFile, filename, FA_CREATE_ALWAYS | FA_WRITE);
+      {
+        // res = f_open(&SDFile, filename, FA_CREATE_ALWAYS | FA_WRITE);
+        res = f_open(&SDFile, filename, FA_CREATE_ALWAYS | FA_WRITE | FA_WRITE);
+          if (res != FR_OK)
+          {
+            printf("Failed to open file, error: %d\n", res);
+            // SD_RESULT result = SD_MAKE_RESULT(SD_OPEN, res);
+            return res;
+          }
+      }
     else return res;
   // }
   
@@ -265,13 +380,6 @@ FRESULT SD_OpenFile(char *filename, uint16_t *header_info)
   //     }
   //   }
   // }
-
-  if (res != FR_OK)
-  {
-    printf("Failed to open file, error: %d\n", res);
-    SD_flg = 0;
-  }
-
   return res;
 }
 
@@ -294,25 +402,17 @@ FRESULT SD_WriteData(const uint16_t *data,uint16_t data_size, const char *filena
   if (res != FR_OK)
   {
     printf("Failed to write to file, error: %d\n", res);
+    // SD_RESULT result = SD_MAKE_RESULT(SD_WRITE, res);
     return res;
   }
   // 작성된 바이트수가 요청한 크기와 다를 경우 오류 처리
   else if(byteswritten < data_size)
   {
     printf("Incomplete write: %u of %d bytes written\n", byteswritten, data_size);
+    // SD_RESULT result = SD_MAKE_RESULT(SD_WRITE_LEN, FR_DISK_ERR);
     return FR_DISK_ERR;
   }
-
-  // 파일 시간 갱신
-  res = f_utime(filename, &fno);
-  if (res != FR_OK)
-  {
-    printf("Failed to update file time, error: %d\n", res);
-    SD_flg = 0;
-    return res;
-  }
-
-  return FR_OK;
+  return res;
 }
 
 
@@ -352,7 +452,9 @@ uint32_t SD_GetCapacity(void)
     else
     {
       printf("f_getfree error: %d\n", fres);
+      // SD_RESULT result = SD_MAKE_RESULT(SD_GETFREE, fres);
       SD_flg = 0;
+
       return 0;
     }
 }
@@ -390,7 +492,7 @@ uint64_t ExtractTimestamp(const char* filename)
  * @brief  파일 이름 생성 함수
  * @param  filename: 파일 이름을 저장할 버퍼
  * @param  header_info: 헤더 정보
- * @retval None
+ * @retval FRESULT: FR_OK 성공, 그 외 실패
  */
 FRESULT GetFilename_CreateFolders(char* filename, uint16_t* header_info)
 {
@@ -401,10 +503,10 @@ FRESULT GetFilename_CreateFolders(char* filename, uint16_t* header_info)
   char date[7] = {0};
   char time[7] = {0};
 
-  strncpy(year,(char*)header_info+6,2);
-  strncpy(month,(char*)header_info + 8,2);
-  strncpy(day,(char*)header_info + 10,2);
-  strncpy(hour,(char*)header_info + 12,2);
+  strncpy(year,(char*)header_info + 6, 2);
+  strncpy(month,(char*)header_info + 8, 2);
+  strncpy(day,(char*)header_info + 10, 2);
+  strncpy(hour,(char*)header_info + 12, 2);
   strncpy(date,(char*)header_info + 6, 6);
   strncpy(time,(char*)header_info + 12, 6);
 
@@ -445,6 +547,7 @@ FRESULT CreateFolders(char* year, char* month, char* day, char* hour)
   if (res != FR_OK && res != FR_EXIST)
   {
     printf("Failed to create year folder: %d\n", res);
+    // SD_RESULT result = SD_MAKE_RESULT(SD_MAKE_DIR, res);
     return res;
   }
     
@@ -455,6 +558,7 @@ FRESULT CreateFolders(char* year, char* month, char* day, char* hour)
   if (res != FR_OK && res != FR_EXIST)
   {
     printf("Failed to create month folder: %d\n", res);
+    // SD_RESULT result = SD_MAKE_RESULT(SD_MAKE_DIR, res);
     return res;
   }
     
@@ -466,6 +570,7 @@ FRESULT CreateFolders(char* year, char* month, char* day, char* hour)
   if (res != FR_OK && res != FR_EXIST)
   {
     printf("Failed to create day folder: %d\n", res);
+    // SD_RESULT result = SD_MAKE_RESULT(SD_MAKE_DIR, res);
     return res;
   }
 
@@ -478,6 +583,7 @@ FRESULT CreateFolders(char* year, char* month, char* day, char* hour)
   if (res != FR_OK && res != FR_EXIST)
   {
     printf("Failed to create day folder: %d\n", res);
+    // SD_RESULT result = SD_MAKE_RESULT(SD_MAKE_DIR, res);
     return res;
   }
 
@@ -501,13 +607,14 @@ FRESULT CreateFolders(char* year, char* month, char* day, char* hour)
 /***************************************************************************
  * @brief  가장 오래된 시간 폴더 삭제 (메인 삭제 함수)
  * @param  None
- * @retval None
+ * @retval FRESULT: FR_OK 성공, 그 외 실패
  * 
  * 폴더 구조: 년/월/일/시간/파일.txt
  * 예: 20xx/20xx-xx/20xx-xx-xx/20xx-xx-xx_xx/20xx-xx-xx_xx-xx/CMS_260101_010101.txt
  */
-void DeleteOldestMinFolder(void)
+FRESULT DeleteOldestFolder(void)
 {
+  FRESULT res;
   char yearPath[5] = {0};       // "20xx" 4
   char monthPath[13] = {0};     // "20xx/20xx-xx" 12
   char dayPath[24] = {0};       // "20xx/20xx-xx/20xx-xx-xx" 23
@@ -519,113 +626,114 @@ void DeleteOldestMinFolder(void)
   printf("\n=== Finding oldest hour folder ===\n");
 
   // 1. 가장 오래된 년 폴더 찾기
-  fres = FindOldestSubfolder(SDPath, oldestName);
-  if (fres != FR_OK || oldestName[0] == '\0')
+  res = FindOldestSubfolder(SDPath, oldestName);
+  if (res == FR_OK && oldestName[0] == '\0')
   {
     printf("No year folders found\n");
-    return;
+    return res;
+  }
+  else if (res != FR_OK)
+  {
+    printf("Error finding oldest year folder: %d\n", res);
+    return res;
   }
   snprintf(tmpPath, sizeof(tmpPath), "%s", oldestName);
   strcpy(yearPath, tmpPath);
   //printf("Oldest year: %s\n", yearPath);
 
   // 2. 가장 오래된 월 폴더 찾기
-  fres = FindOldestSubfolder(yearPath, oldestName);
-  if (fres != FR_OK || oldestName[0] == '\0')
+  res = FindOldestSubfolder(yearPath, oldestName);
+  if (res == FR_OK && oldestName[0] == '\0')
   {
     printf("No month folders found in %s\n", yearPath);
-    f_unlink(yearPath);
-    return;
+    res = f_unlink(yearPath);
+    if(res != FR_OK)
+    {
+      printf("Failed to delete empty year folder: %d\n", res);
+      // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, res);
+      return res;
+    }
+    return res;
+  }
+  else if (res != FR_OK)
+  {
+    printf("Error finding oldest month folder: %d\n", res);
+    return res;
   }
   snprintf(tmpPath, sizeof(tmpPath), "%s/%s", yearPath, oldestName);
   strcpy(monthPath, tmpPath);
   //printf("Oldest month: %s\n", monthPath);
 
   // 3. 가장 오래된 일 폴더 찾기
-  fres = FindOldestSubfolder(monthPath, oldestName);
-  if (fres != FR_OK || oldestName[0] == '\0')
+  res = FindOldestSubfolder(monthPath, oldestName);
+  if (res == FR_OK && oldestName[0] == '\0')
   {
     printf("No day folders found in %s\n", monthPath);
-    f_unlink(monthPath);
+    res = f_unlink(monthPath);
+    if(res != FR_OK)
+    {
+      printf("Failed to delete empty month folder: %d\n", res);
+      // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, res);
+      return res;
+    }
     if (CountItemsInFolder(yearPath) == 0)
     {
-      f_unlink(yearPath);
+      if(fres != FR_OK)
+      {
+        printf("Failed to count items in folder: %d\n", fres);
+        return fres;
+      }
+      res = f_unlink(yearPath);
+      if(res != FR_OK)
+      {
+        printf("Failed to delete empty year folder: %d\n", res);
+        // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, res);
+        return res;
+      }
     }
-    return;
+    return res;
+  }
+  else if (res != FR_OK)
+  {
+    printf("Error finding oldest day folder: %d\n", res);
+    return res;
   }
   snprintf(tmpPath, sizeof(tmpPath), "%s/%s", monthPath, oldestName);
   strcpy(dayPath, tmpPath);
   //printf("Oldest day: %s\n", dayPath);
 
   // 4. 가장 오래된 시간 폴더 찾기
-  fres = FindOldestSubfolder(dayPath, oldestName);
-  if (fres != FR_OK || oldestName[0] == '\0')
+  res = FindOldestSubfolder(dayPath, oldestName);
+  if (res == FR_OK && oldestName[0] == '\0')
   {
     printf("No min folders found in %s\n", dayPath);
-    CleanupEmptyParentFolders(dayPath, monthPath, yearPath);
-    return;
+    res = CleanupEmptyParentFolders(dayPath, monthPath, yearPath);
+    return res;
+  }
+  else if( res != FR_OK)
+  {
+    printf("Error finding oldest hour folder: %d\n", res);
+    return res;
   }
   snprintf(tmpPath, sizeof(tmpPath), "%s/%s", dayPath, oldestName);
   strcpy(hourPath, tmpPath);
   printf("Oldest min folder to delete: %s\n", hourPath);
 
   // 5. 시간 폴더와 내부 파일 모두 삭제
-  fres = DeleteFolder(hourPath);
-  if (fres != FR_OK)
+  res = DeleteFolder(hourPath);
+  if (res != FR_OK)
   {
-    printf("Failed to delete hour folder: %d\n", fres);
-    return;
+    printf("Failed to delete hour folder: %d\n", res);
+    return res;
   }
 
   // 6. 빈 상위 폴더들 정리
-  CleanupEmptyParentFolders(dayPath, monthPath, yearPath);
-
-
-  // 분단위의 폴더를 생성하는 경우는 4번 내용 지우고 아래 활성화 및 CleanupEmptyParentFolders함수 수정 필요
-  #if 0 
-  // 4. 가장 오래된 시간 폴더 찾기
-  fres = FindOldestSubfolder(dayPath, oldestName);
-  if (fres != FR_OK || oldestName[0] == '\0')
+  res = CleanupEmptyParentFolders(dayPath, monthPath, yearPath);
+  if(res == FR_OK)
   {
-    printf("No hour folders found in %s\n", dayPath);
-    f_unlink(dayPath);
-    if (CountItemsInFolder(monthPath) == 0)
-    {
-      f_unlink(monthPath);
-    }
-    return;
+    printf("=== Cleanup complete ===\n\n");
   }
-  snprintf(tmpPath, sizeof(tmpPath), "%s/%s", dayPath, oldestName);
-  strcpy(hourPath, tmpPath);
-  // printf("Oldest day: %s\n", dayPath);
-
-  // 5. 가장 오래된 분 폴더 찾기
-  fres = FindOldestSubfolder(hourPath, oldestName);
-  if (fres != FR_OK || oldestName[0] == '\0')
-  {
-    printf("No min folders found in %s\n", hourPath);
-    CleanupEmptyParentFolders(hourPath, dayPath, monthPath, yearPath);
-    return;
-  }
-  snprintf(tmpPath, sizeof(tmpPath), "%s/%s", hourPath, oldestName);
-  strcpy(minPath, tmpPath);
-  printf("Oldest min folder to delete: %s\n", minPath);
-
-  // 6. 분 폴더와 내부 파일 모두 삭제
-  fres = DeleteFolder(minPath);
-  if (fres != FR_OK)
-  {
-    printf("Failed to delete hour folder: %d\n", fres);
-    return;
-  }
-
-  printf("Successfully deleted: %s\n", minPath);
-
-  // 7. 빈 상위 폴더들 정리
-  CleanupEmptyParentFolders(hourPath, dayPath, monthPath, yearPath);
-
-  #endif
-  printf("=== Cleanup complete ===\n\n");
+  return res;
 }
 
 
@@ -649,6 +757,7 @@ FRESULT FindOldestSubfolder(const char *basePath, char *oldestName)
   res = f_opendir(&tmpDir, basePath);
   if (res != FR_OK)
   {
+    // SD_RESULT result = SD_MAKE_RESULT(SD_OPEN_DIR, res);
     return res;
   }
 
@@ -656,9 +765,19 @@ FRESULT FindOldestSubfolder(const char *basePath, char *oldestName)
   {
     // 디렉터리 엔트리를 1개 읽어 tmpFno에 채움
     res = f_readdir(&tmpDir, &tmpFno);
-    //오류가 발생하거나, 더 이상 읽을 엔트리가 없는 경우
-    if (res != FR_OK || tmpFno.fname[0] == 0)
+
+    // 오류가 발생
+    if (res != FR_OK)
     {
+      // SD_RESULT result = SD_MAKE_RESULT(SD_READ_DIR, res);
+      f_closedir(&tmpDir);
+      return res;
+    }
+
+    // 더 이상 읽을 항목이 없는 경우
+    else if(tmpFno.fname[0] == '\0')
+    {
+      res = FR_OK;
       break;
     }
 
@@ -679,14 +798,15 @@ FRESULT FindOldestSubfolder(const char *basePath, char *oldestName)
     }
   }
 
-  f_closedir(&tmpDir);
-
-  if (oldestName[0] == '\0')
+  // 읽을 dir이 더 없는 경우는 오류처리하지 않음
+  res = f_closedir(&tmpDir);
+  if( res != FR_OK)
   {
-    return FR_NO_FILE;
+    // SD_RESULT result = SD_MAKE_RESULT(SD_CLOSE_DIR, res);
+    return res;
   }
 
-  return FR_OK;
+  return res;
 }
 
 
@@ -707,6 +827,7 @@ FRESULT DeleteFolder(const char *path)
   res = f_opendir(&tmpDir, path);
   if (res != FR_OK)
   {
+    // SD_RESULT result = SD_MAKE_RESULT(SD_OPEN_DIR, res);
     return res;
   }
 
@@ -714,9 +835,14 @@ FRESULT DeleteFolder(const char *path)
   {
     //tmpDir을 순회하면서 tmpFno에 정보 저장
     res = f_readdir(&tmpDir, &tmpFno);
-    if (res != FR_OK || tmpFno.fname[0] == 0)
+    if (res == FR_OK && tmpFno.fname[0] == 0)
     {
       break;
+    }
+    else if (res != FR_OK)
+    {
+      // SD_RESULT result = SD_MAKE_RESULT(SD_READ_DIR, res);
+      return res;
     }
 
     snprintf(tmpitemPath, sizeof(tmpitemPath), "%s/%s", path, tmpFno.fname);
@@ -728,7 +854,6 @@ FRESULT DeleteFolder(const char *path)
       res = DeleteFolder(itemPath);
       if (res != FR_OK)
       {
-        f_closedir(&tmpDir);
         return res;
       }
     }
@@ -738,20 +863,26 @@ FRESULT DeleteFolder(const char *path)
       res = f_unlink(itemPath);
       if (res != FR_OK)
       {
-        printf("Failed to delete file: %s, error: %d\n", itemPath, res);
-        f_closedir(&tmpDir);
+        // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, res);
+        printf("Failed to delete file: %s, error: %d\n", itemPath, res);        
         return res;
       }
     }
   }
 
   f_closedir(&tmpDir);
+  if( res != FR_OK)
+  {
+    // SD_RESULT result = SD_MAKE_RESULT(SD_CLOSE_DIR, res);
+    return res;
+  }
 
   // 빈 폴더 삭제
   res = f_unlink(path);
   if (res != FR_OK)
   {
     printf("Failed to delete folder: %s, error: %d\n", path, res);
+    // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, res);
   }
   else
   {
@@ -769,34 +900,70 @@ FRESULT DeleteFolder(const char *path)
  * @param  yearPath: 년 폴더 경로
  * @retval None
  */
-void CleanupEmptyParentFolders(const char *dayPath, const char *monthPath, const char *yearPath)
+FRESULT CleanupEmptyParentFolders(const char *dayPath, const char *monthPath, const char *yearPath)
 {
+  FRESULT res;
   // 일 폴더가 비었는지 확인 후 삭제
   if(CountItemsInFolder(dayPath) == 0)
   {
-    if(f_unlink(dayPath) == FR_OK)
+    res = f_unlink(dayPath);
+    if(res == FR_OK)
     {
       printf("Deleted empty day folder: %s\n", dayPath);
     }
-
+    else
+    {
+      printf("Failed to delete empty day folder: %s, error: %d\n", dayPath, res);
+      // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, res);
+      return res;
+    }
     // 월 폴더가 비었는지 확인 후 삭제
     if(CountItemsInFolder(monthPath) == 0)
     {
-      if(f_unlink(monthPath) == FR_OK)
+      res = f_unlink(monthPath);
+      if(res == FR_OK)
       {
         printf("Deleted empty month folder: %s\n", monthPath);
       }
-
+      else
+      {
+        printf("Failed to delete empty month folder: %s, error: %d\n", monthPath, res);
+        // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, res);
+        return res;
+      }
       // 년 폴더가 비었는지 확인 후 삭제
       if(CountItemsInFolder(yearPath) == 0)
       {
-        if(f_unlink(yearPath) == FR_OK)
+        res = f_unlink(yearPath);
+        if(res == FR_OK)
         {
           printf("Deleted empty year folder: %s\n", yearPath);
         }
+        else
+        {
+          printf("Failed to delete empty year folder: %s, error: %d\n", yearPath, res);
+          // SD_RESULT result = SD_MAKE_RESULT(SD_UNLINK, res);
+          return res;
+        }
       }
+      else if(CountItemsInFolder(yearPath) == 0xFFFF)
+      {
+        return fres;
+      }
+      else return FR_OK; // 빈 폴더가 아닐 시
     }
+    else if(CountItemsInFolder(monthPath) == 0xFFFF)
+    {
+      return fres;
+    }
+    else return FR_OK; // 빈 폴더가 아닐 시
   }
+  else if(CountItemsInFolder(dayPath) == 0xFFFF)
+  {
+    return fres;
+  }
+  else return FR_OK; // 빈 폴더가 아닐 시
+  return res;
 }
 
 
@@ -805,23 +972,37 @@ void CleanupEmptyParentFolders(const char *dayPath, const char *monthPath, const
  * @param  path: 확인할 폴더 경로
  * @retval 항목 개수 (오류 시 0)
  */
-uint8_t CountItemsInFolder(const char *path)
+uint16_t CountItemsInFolder(const char *path)
 {
   DIR tmpDir;
   FILINFO tmpFno;
-  uint8_t count = 0;
+  uint16_t count = 0;
 
-  if (f_opendir(&tmpDir, path) != FR_OK)
+  fres = f_opendir(&tmpDir, path);
+  if (fres != FR_OK)
   {
-    return 0;
+    // SD_RESULT result = SD_MAKE_RESULT(SD_OPEN_DIR, fres);
+    return 0xFFFF; // Return error value on failure
   }
-
-  while (f_readdir(&tmpDir, &tmpFno) == FR_OK && tmpFno.fname[0] != 0)
+  
+  while (fres = f_readdir(&tmpDir, &tmpFno), fres == FR_OK && tmpFno.fname[0] != 0)
   {
     count++;
   }
+  if(fres != FR_OK)
+  {
+    // SD_RESULT result = SD_MAKE_RESULT(SD_READ_DIR, fres);
+    f_closedir(&tmpDir);
+    return 0xFFFF; // Return error value on failure
+  }
 
-  f_closedir(&tmpDir);
+  fres = f_closedir(&tmpDir);
+  if (fres != FR_OK)
+  {
+    // SD_RESULT result = SD_MAKE_RESULT(SD_CLOSE_DIR, fres);
+    return 0xFFFF; // Return error value on failure
+  }
+
   return count;
 }
 
@@ -845,91 +1026,6 @@ uint16_t make_prpd_zip_temp_buf(uint16_t (*prpd_data)[LINE_MAX][PHASE_MAX], uint
 
   return PRPD_ZIP_TEMP_buf_idx;
 }
-
-
-// /***************************************************************************
-//   * @brief PRPD data compression Function
-//   * @note : PRPD
-//   * @param None
-//   * @retval None
-//   */
-// uint16_t data_compression(uint16_t *pZIP_buf, uint16_t *pPD_Data, uint16_t line, uint8_t ch_max, uint16_t line_max, uint16_t phase_max)
-// {
-//   uint16_t cnt_data = 0;
-//   uint16_t uint16_temp = 0;
-//   uint16_t zip_cnt = 0;
-
-//   // PRPD Line 압축
-//   pZIP_buf[cnt_data] = line + 1;
-//   cnt_data++;
-//   uint16_t length_phase = ch_max * phase_max;
-//   for(uint16_t phase=0; phase<length_phase; phase++)
-//   {
-//     if(phase == 0)
-//     {
-//       uint16_temp = pPD_Data[phase];
-//       zip_cnt = 0;    // 압축 카운터 리셋
-//     }
-//     // 앞 데이터(uint16_temp)와 비교
-//     else if(uint16_temp == pPD_Data[phase])
-//     {
-//       // 앞 데이터과 같으면 같은 값 카운터(zip_cnt)를 하나 증가
-//       zip_cnt++;
-//       // 카운트 값을 pZIP_buf[cnt_data] 위치에 저장하고, pZIP_buf[cnt_data+1]에 찾은 값(prpd_data[cnt_addr])을 저장
-//       pZIP_buf[cnt_data]   = (zip_cnt + 1) | 0x8000;
-//       pZIP_buf[cnt_data+1] = pPD_Data[phase];
-//     }
-//     else
-//     { // 현재 데이터가 이전 데이터와 다르고
-//       // 이전 비교에서 동등 카운트가 있었는가?
-//       if(zip_cnt == 0)    // 0: 압축이 안됨
-//       {
-//         // 현재 데이터를 다음 데이터와 비교할 버퍼(uint16_temp)에 저장하고, 앞 데이터와 다른 현재 데이터을 pZIP_buf[cnt_data]에 저장
-//         pZIP_buf[cnt_data] = uint16_temp;
-//         // 비압축 데이터를 전송 버퍼에 저장하고
-//         uint16_temp = pPD_Data[phase];
-//         // pZIP_buf 배열 위치를 다음 주소로 하나 이동
-//         cnt_data++;
-//       }
-//       else if(zip_cnt == 1)    // 1: 압축해도 안해도 2Word 임으로 압축안함
-//       {
-//         // 압축 카운터 저장위치에 원래 들어가야 할 이전 비압축 데이터를 저장하고
-//         pZIP_buf[cnt_data]   = uint16_temp;
-//         // 현재 비압축 데이터를 전송 버퍼에 저장하고
-//         pZIP_buf[cnt_data+1] = uint16_temp;
-//         // 현재 데이터를 다음 데이터와 비교할 버퍼(uint16_temp)에 저장
-//         uint16_temp = pPD_Data[phase];
-//         // 위에서 1회 앞축 시도가 있었기 때문에 앞에서 차지한 배열 위치에서 pZIP_buf 2Word 이동
-//         cnt_data += 2;
-//       }
-//       else
-//       {
-//         // zip_cnt 2 이상부터는 압축이 일어났으며, for문 시작부분에서 카운터 값과 데이터 값을 이미 저장했음
-//         // 현재 데이터를 다음 데이터와 비교할 버퍼(uint16_temp)에 저장
-//         uint16_temp = pPD_Data[phase];
-//         // 앞에서 진행한 압축 데이터 저장위치에서 다음 위치로 2Word 넘김
-//         cnt_data += 2;
-//       }
-//       // 이번 데이터가 앞 데이터와 다름으로 압축 카운트 초기화하고 다시 시작
-//       zip_cnt = 0;
-//     }
-//   }
-//   // 마지막 압축이 Phase 마지막 부분에서 일어났으나 2개이면 비압축으로 저장하고 Data부분 2를 증가시킴.
-//   if(zip_cnt == 1)
-//   {
-//     // 압축 카운터 저장위치에 원래 들어가야 할 이전 비압축 데이터를 저장하고
-//     pZIP_buf[cnt_data]   = uint16_temp;
-//     // 현재 비압축 데이터를 전송 버퍼에 저장하고
-//     pZIP_buf[cnt_data+1] = uint16_temp;
-//     // cnt_data += 2;
-//   }
-//   if(zip_cnt != 0)
-//   {
-//     // 마지막 압축이 Phase 마지막 부분에서 일어났으면 cnt_data를 압축코드와 Data부분 2를 증가시킴.
-//     // cnt_data += 2;
-//   }
-//   return cnt_data;
-// }
 
 
 /***************************************************************************
@@ -1018,13 +1114,15 @@ uint32_t Zip_PRPD(uint16_t *pZipBuf, uint16_t *pRawData, uint32_t data_bytes)
  */
 void SD_ForceReset(void)
 {
-  open_file_times = 0;
-  prpd_write_complete_flag = 1;
+  line_idx = 0;                     // PRPD 라인 인덱스 초기화
+  open_file_times = 0;              // 파일 오픈 시도 횟수 초기화
+  prpd_write_complete_flag = 1;     // PRPD 데이터 쓰기 완료 플래그 설정
+  get_prpd_data_complete_flag = 0;  // PRPD 데이터 측정 다시 시작
 
   //드라이버 언마운트 및 재연결
-  f_mount(NULL, SDPath, 0);   // 언마운트
-  FATFS_UnLinkDriver(SDPath);    // 드라이버 해제
-  FATFS_LinkDriver(&SD_Driver, SDPath);  // 드라이버 재연결 → 플래그 자동 리셋
+  f_mount(NULL, SDPath, 0);               // 언마운트
+  FATFS_UnLinkDriver(SDPath);             // 드라이버 해제
+  FATFS_LinkDriver(&SD_Driver, SDPath);   // 드라이버 재연결 → 플래그 자동 리셋
 
   HAL_SD_DeInit(&hsd1);       // 하드웨어 해제
 
@@ -1038,193 +1136,3 @@ void SD_ForceReset(void)
 
   return;
 }
-
-
-
-// void GetFilename_CreateFolders(char* buffer)
-// {
-//     FILINFO fno;
-//     fres = f_stat(SDPath, &fno);
-//     if (fres == FR_OK)
-//     {
-//         snprintf(buffer, bufsize, "%s", fno.fname);
-//     }
-//     else
-//     {
-//         snprintf(buffer, bufsize, "Error: %d", fres);
-//     }
-// }
-
-// /***************************************************************************
-//  * @brief  파일명이 날짜-시간 형식인지 확인하는 함수
-//  * @param  filename: 파일 이름 문자열
-//  * @retval 1: 날짜-시간 형식, 0: 아님
-//  */
-// // 파일명이 날짜-시간 형식인지 확인
-// uint8_t IsDateTimeFile(const char* filename)
-// {
-//     int len = strlen(filename);
-    
-//     // 최소 길이 확인
-//     if (len < 15) return 0;
-    
-//     // .txt 확장자 확인
-//     if (strstr(filename, ".txt") == NULL && 
-//         strstr(filename, ".TXT") == NULL) return 0;
-    
-//     // 언더스코어 찾기
-//     int has_underscore = 0;
-//     for (int i = 0; i < len; i++)
-//     {
-//         if (filename[i] == '_')
-//         {
-//             has_underscore = 1;
-//             break;
-//         }
-//     }
-    
-//     return has_underscore;
-// }
-
-
-// /***************************************************************************
-//  * @brief  배열에서 가장 최신 파일의 인덱스 찾기 (가장 큰 timestamp)
-//  * @param  fileArray: 파일 이름 배열
-//  * @param  timestampArray: 타임스탬프 배열
-//  * @param  count: 배열의 요소 개수
-//  * @retval 가장 최신 파일의 인덱스
-//  */
-// uint8_t FindNewestIndexInArray(char fileArray[][23], uint64_t timestampArray[], uint8_t count)
-// {
-//     if (count == 0) return -1;
-    
-//     int newestIdx = 0;
-//     uint64_t newestTime = timestampArray[0];
-    
-//     for (int i = 1; i < count; i++)
-//     {
-//         if (timestampArray[i] > newestTime)
-//         {
-//             newestTime = timestampArray[i];
-//             newestIdx = i;
-//         }
-//     }
-    
-//     return newestIdx;
-// }
-
-// /***************************************************************************
-//  * @brief  SD 카드에서 가장 오래된 10개 파일 찾기
-//  * @param  oldestFiles: 가장 오래된 10개 파일 이름을 저장할 배열
-//  * @retval 찾은 파일 개수
-//  */
-// uint8_t FindOldest10Files(char oldestFiles[][23])
-// { 
-//     // 11개 크기의 배열 (10개 + 비교용 1개)
-//     char fileBuffer[DELETE_COUNT + 1][23] = {0};
-//     uint64_t timestampBuffer[DELETE_COUNT + 1] = {0};
-//     int bufferCount = 0;  // 현재 버퍼에 저장된 파일 개수
-    
-//     printf("\nScanning SD Card\n");
-    
-//     // 디렉토리 열기
-//     fres = f_opendir(&dir, SDPath);
-//     if (fres != FR_OK)
-//     {
-//         printf("Failed to open directory: %d\n", fres);
-//         return 0;
-//     }
-    
-//     // SD 카드의 모든 파일 스캔
-//     while (1)
-//     {
-//         fres = f_readdir(&dir, &fno);
-
-//         // 읽기 오류 또는 더 이상 파일이 없으면 종료
-//         if(fres != FR_OK || fno.fname[0] == 0) break;
-        
-//         // 디렉토리는 무시
-//         if(fno.fattrib & AM_DIR) continue;
-        
-//         uint64_t currentTimestamp = ExtractTimestamp(fno.fname);
-                        
-//         // 버퍼가 10개 미만일 때: 그냥 추가
-//         if(bufferCount < DELETE_COUNT)
-//         {
-//           strcpy(fileBuffer[bufferCount], fno.fname);
-//           timestampBuffer[bufferCount] = currentTimestamp;
-//           bufferCount++;
-//         }
-//         // 버퍼가 10개 찼을 때: 11번째 자리에 넣고 비교
-//         else
-//         {
-//           // 11번째 자리(인덱스 10)에 현재 파일 저장
-//           strcpy(fileBuffer[DELETE_COUNT], fno.fname);
-//           timestampBuffer[DELETE_COUNT] = currentTimestamp;
-                
-//           // 11개 중에서 가장 최신(큰 timestamp) 파일 찾기
-//           int newestIdx = FindNewestIndexInArray(fileBuffer, timestampBuffer, DELETE_COUNT + 1);
-                
-//           if(newestIdx != DELETE_COUNT)
-//           {
-//             // printf("  -> Replaced: %s (was newer)\n", fileBuffer[newestIdx]);
-                  
-//             // 11번째 자리의 파일을 가장 최신 파일 위치로 복사
-//             strcpy(fileBuffer[newestIdx], fileBuffer[DELETE_COUNT]);
-//             timestampBuffer[newestIdx] = timestampBuffer[DELETE_COUNT];
-//           }
-//         }
-//     }
-    
-//     f_closedir(&dir);
-    
-//     printf("\nScan Complete\n");
-//     // printf("Total files to delete: %d\n", bufferCount);
-    
-//     // 최종 결과를 oldestFiles 배열에 복사
-//     for (int i = 0; i < bufferCount && i < DELETE_COUNT; i++)
-//     {
-//         strcpy(oldestFiles[i], fileBuffer[i]);
-//         // printf("%d: %s (timestamp: %lu)\n", 
-//         //        i+1, oldestFiles[i], timestampBuffer[i]);
-//     }
-    
-//     return bufferCount;
-// }
-
-// /***************************************************************************
-//  * @brief  SD 카드에서 가장 오래된 10개 파일 삭제
-//  * @param  None
-//  * @retval None
-//  */
-// void DeleteOldest10Files(void)
-// {
-//     char oldestFiles[DELETE_COUNT][23] = {0};
-//     uint8_t fileCount;
-//     uint8_t count=0;
-    
-//     // 한 번의 스캔으로 가장 오래된 10개 찾기
-//     fileCount = FindOldest10Files(oldestFiles);
-    
-//     if (fileCount != 10)
-//     {
-//         printf("No files to delete.\n");
-//         return;
-//     }
-    
-//     // 찾은 파일들 삭제
-//     for (int i = 0; i < fileCount; i++)
-//     {    
-//         fres = f_unlink(oldestFiles[i]);
-        
-//         if(fres != FR_OK)
-//         {
-//             printf("f_unlink error: %d)\n", fres);
-//             break;
-//         }
-//         else count++;
-//     }
-    
-//     printf("Successfully deleted %d files\n", count);
-//     return;
-// }
